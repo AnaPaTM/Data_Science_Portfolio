@@ -1,0 +1,304 @@
+---
+title: "Lab 14 - Support Vector Machines"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc_depth: 2
+    theme: pulse
+execute: 
+  warning: false
+  message: false
+---
+
+<style>
+.my-textbox {
+  background-color: #f5ebeb;
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+</style>
+
+
+# Random Forests
+
+For this lab we will use the Auto dataset.
+
+##### a) Load the {ISLR2} `Auto` data set. {-}
+
+```{r}
+#| message: false
+library(tidyverse)
+data(Auto, package = "ISLR2")
+```
+
+<br>
+
+* Adjust the data frame as follows and review the data:
+
+```{r}
+Auto$eco <- as.factor(ifelse(Auto$mpg > 22.75, "Economy", "Consuming"))
+Auto2 <- Auto[, c("eco", "weight", "horsepower")]
+dplyr::glimpse(Auto2)
+table(Auto$eco)
+```
+<br>
+
+##### b) Plot the two classes on the space spanned by the variables weight and horsepower. {-}
+
+* Can we separate the two classes by a hyperplane? Is SVM applicable for this task? {-}
+
+```{r}
+ggplot(Auto2, aes(x = weight, y = horsepower, color = eco)) +
+  geom_point()
+```
+
+
+<br>
+<div class="my-textbox">
+
+The points from the two classes for `eco` overlap and there is no clear separation for them. Therefore, the classes cannot be separated by a hyperplane and SVM does seem to be applicable for finding the best margin of separation for them.  
+
+</div> 
+<br>
+
+
+##### c) Use support vector machines to classify cars into Economy and Consuming classes based on weight and horsepower. {-}
+
+* Summarize and interpret the results
+
+
+```{r}
+library(e1071)
+svm_fit <-  svm(eco ~ weight + horsepower, data = Auto2)
+summary(svm_fit)
+```
+<br>
+<div class="my-textbox">
+
+This SVM is for classification problems. The decision boundary that maximizes the margins between the classes used by SVM was `radial`, which best fit and capture the nonlinear relationships between the two predictors.
+
+The cost parameter is equal to 1, which is considered moderate and a good balance for the classification boundaries, which would allow for misclassifications and a smoother decision boundary.
+
+It used 121 support vectors: 62 from class `Consuming` and 59 from class `Economy`. This means 121 observations lie close to or across the decision boundary, and the SVM relies on these points to define the separating surface. Giving that Auto dataset has 392 observations (cars), having 121 support vectors can be considered a moderate percentage, suggesting the classes are not linearly separable by weight and horsepower alone. Many cars lie in overlapping regions of weight/horsepower space. For better separate the data points, the SVM needs many data points to define the boundary.
+
+</div> 
+<br>
+
+* Use the plot function to see the SVM classification results and then interpret them.
+
+```{r}
+plot(svm_fit, Auto2, grid = 100)
+```
+
+<br>
+<div class="my-textbox">
+
+The plot show the `radial` curved boundary that maximizes the margins between the two classes. The 121 support vectors used to construct the boundary are marked as X data points. As we can see, heavier and more powerful cars are expected to fall under the consuming category.  
+
+</div> 
+<br>
+
+
+##### d) Plot SVMs created with linear and polynomial kernels. Compare with previous plot. {-}
+
+
+```{r}
+svm(eco ~ weight + horsepower, data = Auto2, kernel = "linear") |> plot(Auto2, grid = 100)
+svm(eco ~ weight + horsepower, data = Auto2, kernel = "polynomial") |> plot(Auto2, grid = 100)
+```
+<br>
+<div class="my-textbox">
+
+As expected, the margins are different then the curved margin found with the `radial` kernel. In the linear kernel, it seems that more cars are tend to be classified as `Economy` than before. While with the polynomial kernel, it tries to classify more cars as `Consuming`.
+
+</div> 
+<br>
+
+
+##### e) Optimize the SVM using tune() (which invokes tune.svm). {-}
+
+* Try costs 0.01, 0.1, 1, 10, 100, 1000.
+
+* Try linear, polynomial, sigmoid, and radial kernels.
+
+* Look at the top three models in terms of error.
+
+* Plot the error by cost, colored by kernel.
+
+
+```{r}
+set.seed(my_seed <- 1234)
+S_tuned <- tune(svm, eco ~ weight + horsepower, data = Auto2,
+                ranges = list(cost = 10^seq(-2, 3), 
+                              kernel = c("linear", "polynomial", "sigmoid", "radial")))
+summary(S_tuned)
+
+```
+
+```{r}
+arrange(S_tuned$performances, error)[1:3,]
+```
+
+
+
+```{r}
+S_tuned$best.model
+```
+
+
+```{r}
+S_tuned$performances |> 
+  ggplot(aes(x = cost, y = error, colour = kernel)) + 
+  geom_line() +
+  scale_x_log10()
+```
+
+
+<br>
+<div class="my-textbox">
+
+* The optimization is based on 10-fold cross-validation sampling method.
+
+* The best parameters found was with C = 1000 and `radial` kernel yielding the best performance error rate of 0.1096154 with lowest dispersion equal to 0.03800777.
+
+* However, two other models performed similarly to the radial kernel: the linear kernel with C = 0.1 and sigmoid kernel with C = 1, with error rates 0.1121154 and 0.1144872, respectively. That can observed by the plot above. 
+
+* Overall, the radial kernel performs best at high cost since it captures well the nonlinear structure in the data. Therefore, it is the best choice for classifying cars as `Economy` vs `Consuming` using weight and horsepower. This confirms the previous results.
+
+</div> 
+<br>
+
+
+##### f) Use the validation set method to estimate the classification rate using the parameters from two best models. Use a 50% split with seed 1234. {-}
+
+```{r}
+set.seed(my_seed)
+n <-  nrow(Auto2)
+Z = sample(n,n/2)
+
+S_trainr = svm(eco ~ weight + horsepower, Auto2[Z,], cost = 1000, 
+               kernel = "radial")
+Yhatr <- predict( S_trainr, Auto2[-Z,])
+table(Yhatr, Auto2$eco[-Z])
+```
+
+```{r}
+mean(Yhatr == Auto2$eco[-Z]) |> round(2)
+```
+
+```{r}
+S_trainl = svm(eco ~ weight + horsepower, Auto2[Z,], cost = 0.1, 
+               kernel = "linear")
+Yhatl <- predict( S_trainl, Auto2[-Z,])
+table(Yhatl, Auto2$eco[-Z])
+```
+
+```{r}
+mean(Yhatl == Auto2$eco[-Z]) |> round(2)
+```
+
+<br>
+<div class="my-textbox">
+
+The `radial` kernel achieved higher classification rate of 88% compared to the linear kernel with classification rate of 83%.
+
+The radial kernel is clearly superior with higher overall accuracy and lower misclassification for both classes of `eco`. The linear model misclassified 29 `Consuming` cars as `Economy`, compared with 18 for radial kernel. This is the biggest difference. Since it can curve the boundary around borderline points, it is better at classifying them.
+
+In conclusion, the results confirm what we observed in the tuning plot: Radial kernel is the optimal choice for this classification task.
+
+</div> 
+<br>
+
+
+##### g) Create a new data frame with four levels for `eco` as below. {-}
+
+```{r}
+Auto |> 
+mutate(eco = as.factor(case_when(
+    mpg < 17 ~ "guzzler",
+    mpg >= 17 & mpg <22.75 ~ "low",
+    mpg >= 22.75 &  mpg < 29 ~ "medium",
+    .default = "high")),
+    .before = cylinders) |> 
+  select(eco, weight, horsepower) ->
+  Auto3
+ggplot(Auto3, aes(x = weight, y = horsepower, color = eco)) +
+  geom_point()
+```
+
+
+* Use `svm()` with `tune()` to create an optimal model to predict the multiple classes based on 10-fold cross validation on the training set with the previous costs and kernels.
+
+```{r}
+set.seed(my_seed)
+S_tuned <- tune(svm, eco ~ weight + horsepower, data = Auto3[Z,],
+                ranges = list(cost = 10^seq(-2, 3),
+                kernel = c("linear", "polynomial", "sigmoid", "radial"))
+                )
+arrange(S_tuned$performances, error)[1:3,]
+```
+
+
+```{r}
+S_tuned$performances |> 
+  ggplot(aes(x = cost, y = error, colour = kernel)) + 
+  geom_line() +
+  scale_x_log10()
+```
+
+
+* Calculate the classification rate based on the optimal model with the test data.
+
+```{r}
+S_trainp = svm(eco ~ weight + horsepower, Auto3[Z,], cost = 1000, 
+               kernel = "polynomial")
+Yhatp <- predict(S_trainp, Auto3[-Z,])
+table(Yhatp, Auto3$eco[-Z])
+```
+
+```{r}
+mean(Yhatp == Auto3$eco[-Z]) |> round(2)
+```
+
+```{r}
+plot(S_trainp, Auto3, grid = 150)
+```
+
+
+```{r}
+S_trainl4 = svm(eco ~ weight + horsepower, Auto3[Z,], cost = 100, 
+               kernel = "linear")
+Yhatl4 <- predict(S_trainl4, Auto3[-Z,])
+table(Yhatl4, Auto3$eco[-Z])
+```
+  
+```{r}
+mean(Yhatl4 == Auto3$eco[-Z]) |> round(2)
+```
+  
+```{r}
+plot(S_trainl4, Auto3, grid = 150)
+```
+  
+  <br>
+<div class="my-textbox">
+
+* Considering the tuning procedure based on 10-fold cross-validation approach and the training set used, the optimal model to best predict the four classes in `eco` based on `weight` and `horsepower` is a polynomial kernel and Cost 1000. The second best model would be a linear kernel and Cost 100.
+
+* It can be observed in the tuning plot that the polynomial kernel oscillates more than the linear kernel, but reaches the lowest error rate at high cost. On the other hand, the linear kernel seems to be more stable throughout and reaches almost the same results at lower cost.
+
+* The classification rate based on the optimal model is 0.71 or 71% versus 0.77 or 77% for the linear kernel. Which is unexpected, but the linear kernel has higher classification accuracy, it tends to overfit less and seems to handle the natural class structure of `eco` better. The linear kernel performs better across all classes. 
+
+* Therefore, for this classification task I would recommend the linear model with cost 100.
+
+</div> 
+<br>
+  
+  

@@ -1,0 +1,532 @@
+---
+title: "Homework 10: PCA PCR PLS"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    theme: pulse
+    df_print: kable
+execute: 
+  warning: false
+---
+
+
+<style>
+.my-textbox {
+  background-color: #f5ebeb;
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+</style>
+
+<br>
+
+
+# College Applications Continued
+
+This continues the College data problem from the previous h/w. (Chap. 6, \# 9 cd, p.286-287)
+
+Predict the number of applications received based on the other variables in the College data set from {ISLR2}.
+
+```{r}
+#| message: false
+#| echo: fenced
+#| include: true
+library(tidyverse)
+library(ISLR2)
+library(pls)
+glimpse(College)
+```
+
+Previous results for predicting the number of college applications, using a 50% split validation set and seed 123, include:
+
+::: table-striped
+| Method                              | Prediction MSE | Predictors |
+|-------------------------------------|---------------:|:----------:|
+| Stepwise Least Squares (validation) |      1,327,026 |     12     |
+| Stepwise Least Squares (K=10-fold)  |      1,264,962 |     12     |
+| Ridge Regression (lambda.min)       |      2,092,402 |     17     |
+| Lasso (lambda.1se)                  |      1,528,732 |     4      |
+| Lasso (lambda.min)                  |      1,391,186 |     12     |
+:::
+
+<br>
+
+Now fit models using two additional regularization methods and evaluate performance using the validation set based on 50% split so we remain consistent with previous work. Use `set.seed(123)` where appropriate:
+
+\(a\) PCR model. Choose $M$, the number of principal components, using cross-validation.
+
+```{r}
+n <- nrow(College)
+set.seed(123)
+Z <- sample(1:n, n/2)
+
+train_data <- College[Z,]
+test_data <- College[-Z,]
+```
+
+
+```{r}
+set.seed(123)
+pcrv_fit <- pcr(Apps ~ ., data = train_data, scale = TRUE, validation = "CV")
+summary(pcrv_fit)
+```
+
+```{r}
+opt_M <- which.min(pcrv_fit$validation$PRESS)
+opt_M
+```
+
+```{r}
+pcr_pred <- predict(pcrv_fit, test_data, ncomp = opt_M)
+test_MSE <- mean((pcr_pred - test_data$Apps)^2)
+test_MSE
+```
+
+<br>
+<div class="my-textbox">
+
+* The number of components considered was 17.
+
+* The best number of components that minimizes cross validation prediction error is $M = 17$.
+
+* We can see that CP17 explains about 91.58% of the variation in `Apps` as it also provides the smallest value for adjCV RMSEP = 1020.
+
+* This means that PCR model with 17 principal components provides de best prediction MSE, which is equal to 1.373.995.
+
+</div> 
+<br>
+
+
+
+\(b\) PLS model. Choose $M$, the number of principal components, using cross-validation.
+
+
+```{r}
+set.seed(123)
+plsrv_fit <- plsr(Apps ~ ., data = train_data, scale = TRUE, validation = "CV")
+summary(plsrv_fit)
+```
+
+```{r}
+opt_M <- which.min(plsrv_fit$validation$PRESS)
+opt_M
+```
+
+```{r}
+plsr_pred <- predict(plsrv_fit, test_data, ncomp = opt_M)
+test_MSE <- mean((plsr_pred - test_data$Apps)^2)
+test_MSE
+```
+
+<br>
+<div class="my-textbox">
+
+* The number of components considered was 17 as well.
+
+* The best number of components that minimizes cross validation prediction error is $M = 10$.
+
+* We can see that CP10 explains about 91.57% of the variation in `Apps` as it also provides the smallest value for adjCV RMSEP = 1019.
+
+* This means that PSL model with 10 principal components provides de best prediction MSE, which is equal to 1.384.151.
+
+</div> 
+<br>
+
+
+
+\(c\) Evaluate performance of each method in terms of **prediction MSE** and number of components. Show the validation plots for both models.
+
+
+```{r}
+validationplot(pcrv_fit, val.type = "MSEP",
+               main = "PCR: Cross-Validation Results",
+               col = "blue", lwd = 2, )
+
+
+validationplot(plsrv_fit, val.type = "MSEP",
+               main = "PLS: Cross-Validation Results",
+                col = "red", lwd = 2)
+
+```
+
+
+<br>
+<div class="my-textbox">
+
+* PCR plot: MSE decreases quickly for the first few components, then levels off and the optimal $M$ is reached at the end around 16 - 17.
+
+* PLS plot: MSE decreases quickly for the first few components, then stabilizes sooner and the optimal $M$ is reached around 7 - 10.
+
+In conclusion, PLS tends to achieve comparable predictive performance (as in this case), or sometimes even better, using fewer components in the model.
+
+</div> 
+<br>
+
+
+\(d\) Add the results into the summary table. Comment on the results obtained including MSE Prediction and number of predictors.
+
+-   Recommend a method and provide a rationale?
+
+-   Hint: Consider help for: `pls::validationplot()`, `pls::R2()`, `pls::MSEP()`
+
+
+
+| Method                        | Prediction MSE | Predictors |
+|-------------------------------|---------------:|:----------:|
+| Stepwise Least Squares (validation)| 1,327,026 |     12     |
+| Stepwise Least Squares (K=10-fold)|  1,264,962 |     12     |
+| Ridge Regression (lambda.min) |      2,092,402 |     17     |
+| Lasso (lambda.1se)            |      1,528,732 |      4     |
+| Lasso (lambda.min)            |      1,391,186 |     12     |
+| **PCR**                       |  **1.373.995** |  **17**    |
+| **PLS**                       |  **1.384.151** |  **10**    |
+
+
+<br>
+<div class="my-textbox">
+
+* Recommendation: Stepwise Least Squares (K=10-fold). 
+
+  * It achieved the lowest test MSE and provided the best predictive accuracy overall.
+
+  * It uses a moderate number of predictors (12), maintaining interpretability and avoiding overfitting.
+
+* My second recommedation would be for **Lasso (lambda.1se)** because of the model simplicity and interpretability, which sometimes is more important than the absolute best accuracy and it provided the second best MSE. This model is easier to interpret and communicate while retaining most of the predictive power.
+
+</div> 
+<br>
+
+
+
+# Comparison of dimension reduction methods
+
+We want to predict median value of owner-occupied homes, `medv`, in the Boston data set in the {ISLR2} package. It should have 13 variables. Leave `rad` as an integer.
+
+```{r}
+#| message: false
+library(tidyverse)
+library(ISLR2)
+library(boot)
+library(leaps)
+library(glmnet)
+library(pls)
+glimpse(Boston)
+```
+
+<br>
+
+(a) Use four regularization methods, lasso, ridge regression, PCR, and PLS. Recommend a model Provide a rationale based on their predictive performance (Mean Squared Error) and the number of predictors. 
+
+-   Use `set.seed(1234)` whenever appropriate.
+-   **Do not use a validation set.** Use k=10 fold cross-validation for all models.
+
+
+```{r}
+reg <- lm(medv ~ ., data = Boston) 
+x <- model.matrix(reg)[, -1]
+dim(x)
+```
+
+<br>
+
+- a.1 Ridge Regression
+
+```{r}
+set.seed(1234)
+rr_cv <- cv.glmnet(x, y = Boston$medv, alpha = 0)
+rr_cv
+```
+
+```{r}
+rr_pred <- predict(rr_cv, newx = x, s = "lambda.min")
+mean((rr_pred - Boston$medv)^2) |> round(3)
+
+rr_pred <- predict(rr_cv, newx = x, s = "lambda.1se")
+mean((rr_pred - Boston$medv)^2) |> round(3)
+```
+
+<br>
+<div class="my-textbox">
+
+* The best lambda value that minimizes the CV MSE was $\lambda (min) = 0.678$ and $\lambda (1se) = 3.970$, which is a close comparison to the minimum lambda, but with fewer penalties. The number of parameters in the model is still 12.
+
+</div> 
+<br>
+
+
+
+- a.2 Lasso Regression
+
+
+```{r}
+set.seed(1234)
+lr_cv <- cv.glmnet(x, y = Boston$medv, alpha = 1)
+lr_cv
+```
+
+```{r}
+lr_pred <- predict(lr_cv, newx = x, s = "lambda.min")
+mean((lr_pred - Boston$medv)^2) |> round(3)
+
+lr_pred2 <- predict(lr_cv, newx = x, s = "lambda.1se")
+mean((lr_pred2 - Boston$medv)^2) |> round(3)
+```
+
+
+<br>
+<div class="my-textbox">
+
+* The best lambda value that minimizes the CV MSE was $\lambda (min) = 0.0307$ and $\lambda (1se) = 0.3789$. For the minimum MSE there are 10 parameters in the model. However, for `1se` MSE, LASSO method shrunk 4 parameters to zero and there are now 8 parameters in the model.
+
+</div> 
+<br>
+
+
+
+- a.3 PC Regression
+
+```{r}
+set.seed(1234)
+pcr_medv_fit <- pcr(medv ~ ., data = Boston,
+                    scale = TRUE,
+                    validation = "CV")
+summary(pcr_medv_fit)
+```
+
+```{r}
+opt_M_medv_pcr <- which.min(pcr_medv_fit$validation$PRESS)
+opt_M_medv_pcr
+```
+
+```{r}
+pcr_medv_pred <- predict(pcr_medv_fit, Boston, ncomp = opt_M_medv_pcr)
+MSE_medv_pcr <- mean((pcr_medv_pred - Boston$medv)^2)
+MSE_medv_pcr
+```
+
+<br>
+
+- a.4 PLS Regression
+
+```{r}
+set.seed(1234)
+pls_medv_fit <- plsr(medv ~ ., data = Boston,
+                     scale = TRUE,
+                     validation = "CV")
+summary(pls_medv_fit)
+```
+
+
+```{r}
+opt_M_medv_pls <- which.min(pls_medv_fit$validation$PRESS)
+opt_M_medv_pls
+```
+
+```{r}
+pls_medv_pred <- predict(pls_medv_fit, Boston, ncomp = opt_M_medv_pls)
+MSE_medv_pls <- mean((pls_medv_pred - Boston$medv)^2)
+MSE_medv_pls
+```
+
+<br>
+
+- a.5 Summary
+
+
+| Method                        | Prediction MSE | Predictors |
+|-------------------------------|---------------:|:----------:|
+| Ridge Regression (lambda.min) |  22.959     |      12       |
+| Lasso (lambda.min)            |  22.478     |      10       |
+| Lasso (lambda.1se)            |  25.376     |       8       |
+| PCR                           |  22.42968   |      12 PCs   |
+| PLSR                          |  22.43538   |       8 PCs   |
+
+
+
+<br>
+<div class="my-textbox">
+
+* My recommendation: The Lasso model with Lambda min = 22.47 which is one of the lowest prediction MSE - indicating a good predictive performance. This is my choice because Lasso retains interpretability by keeping actual predictors in the model rather than abstract PCs. It uses 10 predictors, fewer than Ridge (12) and PCR (12 PCs), which means it achieves nearly the best accuracy with a simpler model. Therefore, it’s the one of the most efficient and interpretable choice for predicting median home values (medv) in the Boston dataset.
+
+* The Lasso at `lambda.1se` uses only 8 predictors, but with a noticeably higher MSE (25.38), suggesting a loss in predictive power that doesn’t justify the extra simplicity.
+
+* Comparison with PCR and PLSR: PCR (MSE = 22.43) and PLSR (MSE = 22.44) performed slightly better, but their predictors (principal components) are linear combinations of all variables, making interpretation less straightforward and that's why I would go with Lasso.
+
+</div> 
+<br>
+
+
+
+
+(b) Create a new data set with `rad` as a factor. Recompute the Lasso (lambda.1se) and PLSR results. Rename the variables so you can compare results.
+
+```{r}
+table(Boston$rad)
+Boston |> 
+  dplyr::mutate(rad = as.factor(rad)) ->
+  Boston_rf
+Xrf <- model.matrix(lm(medv ~ ., data = Boston_rf))[,-1]
+dim(Xrf)
+```
+
+
+<br>
+- b.1 Lasso with `rad` as a factor.
+
+
+```{r}
+set.seed(1234)
+lr_cv_rf <- cv.glmnet(Xrf, y = Boston_rf$medv, alpha = 1)
+lr_cv_rf
+```
+
+```{r}
+lr_pred_rf <- predict(lr_cv_rf, newx = Xrf, s = "lambda.min")
+mean((lr_pred_rf - Boston_rf$medv)^2) |> round(3)
+
+lr_pred_rf2 <- predict(lr_cv_rf, newx = Xrf, s = "lambda.1se")
+mean((lr_pred_rf2 - Boston_rf$medv)^2) |> round(3)
+```
+
+<br>
+- b.2 Comment on the differences in the coefficients between the models with `rad` as a number and `rad` as a factor. For convenience you can use code similar to the following with the appropriate model names. (Commented so your can render the document before getting this far.)
+
+```{r}
+#| label: compare-coefs
+dplyr::bind_rows(
+  coef(lr_cv) |> round(3) |> as.matrix() |> as.data.frame() |> tibble::rownames_to_column(),
+  coef(lr_cv_rf) |> round(3) |> as.matrix() |> as.data.frame() |> tibble::rownames_to_column()
+) |> 
+dplyr::mutate(model = c(rep("lasso", length(coef(lr_cv))), rep("lasso-rf", length(coef(lr_cv_rf))))) |> 
+  dplyr::arrange(rowname) |> 
+tidyr::pivot_wider(names_from = rowname, values_from = lambda.1se)
+```
+
+```{r}
+coef(lr_cv)
+coef(lr_cv_rf)
+```
+
+
+<br>
+<div class="my-textbox">
+
+* In the method with `rad` as integer, `rad` wasn't even part of the model. 
+
+* In the method with `rad` as factor, `rad` levels 3 and 8 are kept in the model.
+
+</div> 
+<br>
+
+
+
+- b.3 PLSR with `rad` as a factor.
+
+
+```{r}
+set.seed(1234)
+pls_medv_fit_rf <- plsr(medv ~ ., data = Boston_rf,
+                        scale = TRUE,
+                        validation = "CV")
+summary(pls_medv_fit_rf)
+```
+
+
+```{r}
+opt_M_medv_pls_rf <- which.min(pls_medv_fit_rf$validation$PRESS)
+opt_M_medv_pls_rf
+```
+
+```{r}
+pls_medv_pred_rf <- predict(pls_medv_fit_rf, Boston_rf, ncomp = opt_M_medv_pls_rf)
+MSE_pls_rf <- mean((pls_medv_pred_rf - Boston_rf$medv)^2)
+MSE_pls_rf
+```
+
+<br>
+c.  Compute both Lasso (lambda.1se) and PLSR **without `rad` in the model at all.**
+
+
+- LASSO
+
+```{r}
+X_no_rad <- model.matrix(lm(medv ~ . -rad, data = Boston))[,-1]
+dim(X_no_rad)
+```
+
+```{r}
+set.seed(1234)
+lr_cv_nr <- cv.glmnet(X_no_rad, y = Boston$medv, alpha = 1)
+lr_cv_nr
+```
+
+```{r}
+lr_pred_nr <- predict(lr_cv_nr, newx = X_no_rad, s = "lambda.min")
+mean((lr_pred_nr - Boston$medv)^2) |> round(3)
+
+lr_pred_nr2 <- predict(lr_cv_nr, newx = X_no_rad, s = "lambda.1se")
+mean((lr_pred_nr2 - Boston$medv)^2) |> round(3)
+```
+
+
+<br>
+- PLSR
+
+
+```{r}
+set.seed(1234)
+pls_medv_fit_nr <- plsr(medv ~ . -rad, data = Boston,
+                        scale = TRUE,
+                        validation = "CV")
+summary(pls_medv_fit_nr)
+```
+
+
+```{r}
+opt_M_medv_pls_nr <- which.min(pls_medv_fit_nr$validation$PRESS)
+opt_M_medv_pls_nr
+```
+
+```{r}
+pls_medv_pred_nr <- predict(pls_medv_fit_nr, Boston, ncomp = opt_M_medv_pls_nr)
+MSE_pls_nr <- mean((pls_medv_pred_nr - Boston$medv)^2)
+MSE_pls_nr
+```
+
+<br>
+d.  Summarize the results from models in b and c in the table below. Recommend a model and provide your rationale.
+
+
+| Method                           | Prediction MSE | Predictors |
+|----------------------------------|---------------:|:----------:|
+| Lasso (lambda.1se) `rad`         |     25.376     |    10      |
+| Lasso (lambda.1se)  `rad` Factor |     25.102     |     9      |
+| Lasso (lambda.1se) no `rad`      |     26.579     |     8      |
+| PLSR `rad`                       |     22.43538   |    8 PCs   |
+| PLSR `rad`   Factor              |     21.82255   |    8 PCs   |
+| PLSR no `rad`                    |     23.28088   |   11 PCs   |
+
+
+
+<br>
+<div class="my-textbox">
+
+My recommended model is the PLSR with `rad` as a factor because it provided the lowest prediction MSE (21.82) among all models.
+
+* The model uses only 8 components, making it relatively compact while maintaining a strong predictive performance.
+
+* All Lasso models have higher MSEs (25–26), indicating worse predictive accuracy. While Lasso offers feature selection and interpretability, the loss in performance here was substantial.
+
+</div> 
+<br>
+
+
+
+

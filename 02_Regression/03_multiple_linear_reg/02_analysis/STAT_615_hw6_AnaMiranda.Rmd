@@ -1,0 +1,547 @@
+---
+title: "DATA 615 - Regression: Homework - 6"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(patchwork)
+library(corrplot)
+```
+
+
+\newpage
+
+
+# Read the midterm exam instructions (see attached file on Canvas).
+
+
+\checkmark  Done.
+
+\bigskip
+\bigskip
+
+
+# Problem 6.11. Grocery Retailer (p. 250, 15 pts.)
+
+Refer to Grocery retailer Problem 6.9. Assume that regression model (6.5) for the three predictor variables with independent error terms is appropriate.
+
+A large, national grocery retailer tracks productivity and costs of its facilities closely. Data below were obtained from a single distribution center for a one-year period. Each data point for each variable represents one week of activity. 
+
+The variables included are:
+
+  - The total labor hours (Y).
+  - The number of cases shipped ($X_1$), 
+  - The indirect costs of the total labor hours as a percentage ($X_2$), 
+  - A qualitative predictor called holiday that is coded 1 if the week has a holiday and 0 otherwise ($X_3$), 
+  
+```{r}
+gr <- read.table("./data/CH06PR09.txt", header = F)
+colnames(gr) <- c("Y_labor_hours", "X1_cases_shipped", "X2_cost_labor", "X3_holiday_dummy")
+glimpse(gr)
+```
+  
+
+\bigskip
+
+Fit regression model (6.5) to the data for three predictor variables.
+
+
+```{r}
+gr_MLR = lm(Y_labor_hours ~  X1_cases_shipped + X2_cost_labor + X3_holiday_dummy, data = gr)
+summary(gr_MLR)
+```
+
+* **The estimated regression function is:**
+
+$$\hat{Y} = 4150 + 0.000787X_1 - 13.17X_2 + 623.6X_3$$
+
+\bigskip
+
+
+### a. Test whether there is a regression relation, using level of significance 0.05. State the alternatives, decision rule, and conclusion. What does your test result imply about B1, B2, and B3? What is the p-value of the test? {.unnumbered}
+
+
+```{r}
+gr_null = lm(Y_labor_hours ~  1, data = gr)
+anova(gr_null, gr_MLR)
+```
+\bigskip
+
+
+The hypotheses are:
+
+* $H_0: \beta_1 = \beta_2 = \beta_3 = 0$, meaning the model is not significant overall.
+* $H_a: \beta_k \neq 0$, for at least one Beta, where k = 1, ..., p-1 and at least one predictor is significantly associated with the response variable. 
+
+The rule is to reject $H_0$ if the p-value < alpha or F_observed > $F_{(0.05, \ df_1 = df_R, \ df_2 = df_E)}$
+
+The F-test of overall significance, along with the p-value, is calculated in the ANOVA summary table above: F_observed = 35.337 and p-value = 3.316e-12, as well as provided in the output summary table of the multiple regression analysis presented above.
+
+The F-critic is:  
+
+```{r}
+n = 52
+p = 4
+f_obs = 35.337
+
+fcrit <- qf(p = 0.05, df1 = p-1, df2 = (n-p), lower.tail = FALSE)
+fcrit
+
+p_value = 1 - pf(f_obs, (p-1), (n-p))
+p_value
+```
+
+* **Conclusion:**  With a very small p-value = 3.316e-12 being a lot smaller than the significance level of 0.05, and the F_observed = 35.337 much larger than the F-critic = 2.80, there is enough evidence to reject the null hypothesis in favor of the alternative hypothesis. Therefore, overall the regression model is significant at 0.05 significance level.
+
+
+### b. Estimate B1 and B3 jointly by the Bonferroni procedure, using a 95 percent family confidence coefficient. Interpret your results. {.unnumbered}
+
+* family alpha = 0.05
+* g = 2 (number of intervals)
+* p = 4
+* n = 52
+* From the MLR output above, we know that:
+
+  * $\hat \beta_1$ = 0.000787
+  * $\hat \beta_3$ = 623.6
+  * $se(\hat \beta_1)$ = 3.646e-04 or 0.000365
+  * $se(\hat \beta_1)$ = 6.264e+01 or 62.64
+
+Lets calculate the value of $B = t_{(1 - (\alpha/g)*2, \ n-p)}$:
+
+```{r}
+g = 2
+p = 4
+n = 52
+
+B = qt(1 - (0.05/g)/2, n-p)
+B  
+
+Lower_b1 = 0.000787 - (B * 0.000365)
+Lower_b1
+Upper_b1 =  0.000787 + (B * 0.000365)
+Upper_b1
+
+Lower_b3 = 623.6 - B * 62.64
+Lower_b3
+Upper_b3 = 623.6 + B * 62.64
+Upper_b3
+```
+
+At 95% confidence level, the Bonferroni family CI for Beta 1 and Beta 3 are:
+
+* $\beta_1: \hat \beta_1 \pm B * se(\hat \beta_1) = 0.000787\ \pm \ 2.314 * 0.000365 = (0.0000576, 0.001631573)$
+
+* $\beta_3: \hat \beta_3 \pm B * se(\hat \beta_3) = 623.6\ \pm \ 2.314 * 62.64 = (478.6574, 768.5426)$
+
+
+
+### c. Calculate the coefficient of multiple determination R-squared. How is this measure interpreted here? {.unnumbered}
+
+
+The coefficient of multiple determination R-squared is $R^2 = SSR/SSTO$. Using the results from the ANOVA table above:
+
+SSR = 2176606
+SSTO  = 3162136  
+
+```{r}
+R_squared  = 2176606 / 3162136
+R_squared
+```
+
+* **Conclusion:** The $R^2$ measures the proportion of the variation in Y that can be explained by the proposed multiple linear regression model above, considering the predictor used in the model. Therefore, we can say that, with an $R^2 = 0.689$ or 68%, that about 68% of the variation in total labor hours can be explained by this MLR model using number of cases shipped (X1), total cost of labor hours (X2) and the holiday indicator variable (X3).
+
+\newpage
+
+# Problem 6.12. Grocery Retailer (p. 250, 15pts., a-10, b-5)
+
+Refer to Grocery retailer Problem 6.9. Assume that regression model (6.5) for three predictor variables with independent normal error terms is appropriate.
+
+### a. Management desires simultaneous interval estimates of the total labor hours for the following five typical weekly shipments: {.unnumbered}
+
+* X1 = (302000, 245000, 280000, 350000, 295000), 
+* X2 = (7.20, 7.40, 6.90, 7.00, 6.70),
+* X3 = (0, 0, 0, 0, 1) 
+
+Obtain the family of estimates using a 95 percent family confidence coefficient. Employ the Working-Hotelling or the Bonferroni procedure, whichever is more efficient. 
+
+* alpha = 0.05
+* g = 5
+* p = 4
+* n = 52
+
+Let's calculate B of the Bonferroni's procedure and  W of the Work-Hotelling's procedure to access which measurement will provide narrower intervals.
+
+```{r}
+g = 5
+n = 52
+p = 4
+a = 0.05
+```
+
+\bigskip
+
+The B for the Bonferroni's procedure is:
+
+```{r}
+B = qt(1 - (a/g) / 2, n - p)
+B
+```
+\bigskip
+
+The W for the Work-Hotelling's procedure is
+
+```{r}
+W = sqrt(p * qf(1 - a, p, n - p))
+W
+```
+
+* Note that B < W and the Bonferroni's procedure will produce shorter intervals and it is a better option for these estimates.
+
+\bigskip
+\bigskip
+
+Therefore, the simultaneous interval estimates for total labor hours for the five weekly shipments considered above are:
+
+```{r}
+predict(gr_MLR, 
+        newdata = data.frame(X1_cases_shipped = c(302000, 245000, 280000, 350000, 295000),
+                             X2_cost_labor    = c(7.20, 7.40, 6.90, 7.00, 6.70), 
+                             X3_holiday_dummy = c(0, 0, 0, 0, 1)),
+        se = F, 
+        level = 1 - (a/g), 
+        interval = "confidence")
+```
+* **Findings:** With 95% family confidence level, the joint CI for the mean labor hours (Y) for the new shipments are:
+
+* $\hat Y_1 = 4292.790, \ CI: (4235.507, 4350.073)$
+* $\hat Y_2 = 4245.293, \ CI: (4165.626, 4324.960)$
+* $\hat Y_3 = 4279.424, \ CI: (4213.859, 4344.989)$
+* $\hat Y_4 = 4333.203, \ CI: (4255.609, 4410.798)$
+* $\hat Y_5 = 4917.418, \ CI: (4749.781, 5085.055)$
+
+
+
+### b. For the data in Problem 6.9 on which the regression fit is based, would you consider a shipment of 400,000 cases with an indirect percentage of 7.20 on a nonholiday week to be within the scope of the model? What about a shipment of 400,000 cases with an indirect percentage of 9.9 on a nonholiday week? Support your answers by preparing a relevant plot. {.unnumbered}
+
+
+```{r}
+plot(gr$X1_cases_shipped, gr$X2_cost_labor, col = gr$X3_holiday_dummy + 1,
+     pch = 1 + gr$X3_holiday_dummy, ylim = c(4, 10)
+     )
+points(c(400000, 400000), c(7.2, 9.9), pch = 8, lwd = 2)
+```
+
+* **Findings:** The asterisks in the plot represents the new values suggested by the problem. So, the pair of values (400,000 and 7.2) seems to fall within the scope of the data, while the the pair of values (400,000 and 9.9) fall more distant from the other values and could be considered an outlier and, consequently, doesn't seem to be within the scope of the model.
+
+
+\newpage
+
+# Problem 6.13. Grocery Retailer (p. 250, 10pts)
+ 
+Refer to Grocery retailer Problem 6.9. Assume that regression model (6.5) for three predictor variables with independent normal error terms is appropriate. Four separate shipments with the following characteristics must be processed next month: 
+
+* X1 = (230000, 250000, 280000, 340000), 
+* X2 = (7.50, 7.30, 7.10, 6.90) and 
+* X3 = (0, 0, 0, 0).
+
+Management desires predictions of the handling times for these shipments so that the actual handling times can be compared with the predicted times to determine whether any are out of line. Develop the needed predictions, using the most efficient approach and a family confidence coefficient of 95 percent.
+
+
+Lets calculate B of the Bonferroni's procedure and the S of the Scheffe's procedure to access which method will provide narrower intervals.
+
+
+```{r}
+g = 4
+n = 52
+p = 4
+a = 0.05
+```
+
+\bigskip
+
+
+The B for the Bonferroni's procedure is:
+
+```{r}
+B = qt(1 - (a/g) / 2, n - p)
+B
+```
+
+
+\bigskip
+
+The S for the Scheffe's procedure is
+
+```{r}
+S = sqrt(g * qf(1 - a, g, n - p))
+S
+```
+\bigskip
+
+* Note that B < S and the Bonferroni's procedure will produce narrower intervals and it is a better option for these estimates.
+
+
+\bigskip
+\bigskip
+
+Therefore, the simultaneous interval estimates for total labor hours for the five weekly shipments considered above are:
+
+```{r}
+predict(gr_MLR, 
+        newdata = data.frame(X1_cases_shipped = c(230000, 250000, 280000, 340000),
+                             X2_cost_labor    = c(7.50, 7.30, 7.10, 6.90), 
+                             X3_holiday_dummy = c(0, 0, 0, 0)),
+        se = F, 
+        level = 1 - (a/g), 
+        interval = "prediction")
+```
+
+
+* **Findings:** With 95% family confidence level, the joint PI for the mean labor hours (Y) for the four new shipments are:
+
+* $\hat Y_1 = 4232.171, \ CI: (3849.911, 4614.430)$
+* $\hat Y_2 = 4250.545, \ CI: (3871.478, 4629.613)$
+* $\hat Y_3 = 4276.791, \ CI: (3900.122, 4653.460)$
+* $\hat Y_4 = 4326.649, \ CI: (3947.913, 4705.385)$
+
+
+
+\newpage
+
+
+# Problem 7.5 (b, add part c) (p. 289, 10 pts.)
+
+* Note: The following 3 questions use Patient Satisfaction data (Problem 6.15, CH06PR15.txt)
+
+A hospital administrator wished to study the relation between patient satisfaction (Y) and patient's age (X1, in years), severity of illness (X2, an index), and anxiety level (X3, an index). The administrator randomly selected 46 patients and collected the data presented below, where larger values of Y, X2 , and X3 are, respectively, associated with more satisfaction, increased severity of illness, and more anxiety.
+
+
+```{r}
+ps <- read.table("./data/CH06PR15.txt", header = F)
+colnames(ps) <- c("Y_satisfaction", "X1_age", "X2_severity", "X3_anxiety")
+glimpse(ps)
+```
+
+
+### a. Obtain the analysis of variance table that decomposes the regression sum of squares into extra sums of squares associated with X2; with X1, given X2; and with X3, given X2 and X1.  {.unnumbered}
+
+
+```{r}
+ps_MLR = lm(Y_satisfaction ~ X1_age + X2_severity + X3_anxiety, data = ps)
+
+summary(ps_MLR)
+```
+
+```{r}
+anova(ps_MLR)
+```
+
+
+### b. Test whether X3 can be dropped from the regression model given that X1, and X2 are retained. Use the F* test statistic and level of significance 0.025. State the alternatives, decision rule, and conclusion. What is the p-value of the test?  {.unnumbered}
+
+
+* The full model is: $Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \beta_3X_3 + \ e$
+
+* Can anxiety be dropped from the model?
+
+  * Hypothesis test would be: $H_0: \beta_3 = 0$ vs. $H_a: \beta_3 \neq 0$
+
+* The reduced model is: $Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \ e$
+
+  
+
+```{r}
+ps_MLR_red = lm(Y_satisfaction ~ X1_age + X2_severity, data = ps)
+
+summary(ps_MLR_red)
+
+anova(ps_MLR_red, ps_MLR)
+```
+
+The partial F-test is as following:
+
+* The SSE(Full model) = 4248.8 and with DF = 42.
+* The SSE(Reduced model) = 4613.0 and with DF = 43
+
+$F^* = \ (SSE(R) - SSE(F)) \ / \ (df_E(R) - df_E(F)) \over SSE(F) / \ df_E(F)$
+
+
+
+```{r}
+F_test_partial = ((4613.0 - 4248.8) / (43 - 42)) / (4248.8 / 42)
+F_test_partial
+```
+
+Therefore, the partial F-test, F* = 3.60.
+
+
+The p-value  = P(F-critic > F-partial)
+
+```{r}
+p_value = 1 - pf(F_test_partial, 1, 42)
+p_value
+
+```
+
+* The decision rule is: Reject Ho if p-value < alpha = 0.025 or if F-partial < F-critic(1-alpha, 1, 42).
+
+
+```{r}
+f_critic = qf(0.975, 1, 42)
+f_critic
+```
+* The F-critic = 5.403859
+
+* **Conclusion:** With a p-value = 0.065 larger than alpha = 0.025 and a F-partial = 3.60 less than the F-critic = 5.40, I can strongly accept Ho, at 0.025 significance level, and drop anxiety from the model when age and severity of illness is in the model.
+
+
+### c. Repeat part (b), but use a t-test. Report the t-test statistic and p-value from the output. Compare the t-test results to the Partial F-test result from part (b), and comment.  {.unnumbered}
+
+* Can anxiety be dropped from the model?
+
+  * Hypothesis test would be: $H_0: \beta_3 = 0$ vs. $H_a: \beta_3 \neq 0$
+
+
+* t-test statistic:
+
+$t_{observed} = {\ {b_3 - 0} \over se(b_3)}$
+
+
+```{r}
+t_obs = -13.4702 / 7.0997
+t_obs
+```
+
+Therefore, $t_{observed} = -1.897291$.
+
+* The $p-value  = 2 * P(t_{(df = df_E)} > t_{observed}) = 2  *  P(t_{df=42}) > |-1.8973 | = 0.0647$,  as t ~ t(n-p).
+
+
+* **Conclusion:** The same conclusion from above follows: With a p-value = 0.0647 larger than alpha = 0.025, I can strongly accept Ho, at 0.025 significance level, and drop anxiety from the model when age and severity of illness is in the model.
+
+
+\newpage
+
+# Problem 7.6 (p. 289, 10 pts.)
+
+Refer to Patient satisfaction Problem 6.15. Test whether both X2 and X3 can be dropped from the regression model given that X1 is retained. Use alpha = 0.025. State the alternatives, decision rule, and conclusion. What is the p-value of the test?
+
+
+* Can both severity of illness (X2) and anxiety (X3) be dropped from the model?
+
+  * Hypothesis test would be: $H_0: \beta_2 = \beta_3 = 0$ vs. $H_a:$ Either X2 or X3, or both, is not equal to zero and should remain in the model.
+  
+* Reduced model: $Y = \beta_0 + \beta_1X_1 + \ e$
+
+
+```{r}
+ps_MLR_red2 = lm(Y_satisfaction ~ X1_age, data = ps)
+anova(ps_MLR_red2, ps_MLR)
+```
+
+The partial F-test is as following:
+
+* The SSE(Full model) = 4248.8 and with DF = 42.
+* The SSE(Reduced model) = 5093.9 and with DF = 44
+
+
+$F^* = {(SSE(R) - SSE(F)) \ / \ (df_E(R) - df_E(F)) \over  SSE(F) \ / \ df_E(F)}$
+
+
+```{r}
+F_test_partial = ((5093.9 - 4248.8) / (44 - 42)) / (4248.8 / 42)
+F_test_partial
+```
+
+Therefore, the partial F-test, F* = 4.177.
+
+
+The p-value  = P(F-critic > F-partial)
+
+```{r}
+p_value = 1 - pf(F_test_partial, 2, 42)
+p_value
+
+```
+
+
+```{r}
+f_critic = qf(0.975, 2, 42)
+f_critic
+```
+
+
+* The decision rule is: Reject Ho if p-value < alpha = 0.025 or if F-partial < F-critic(1-alpha, 2, 42).
+
+
+* **Conclusion:** With a p-value = 0.0221 smaller than alpha = 0.025 and a F-partial = 4.177 larger than the F-critic = 4.03271, I can reject Ho in favor of the alternative hypothesis, at 0.025 significance level. Therefore, Either severity of illness or anxiety, or both, is not equal to zero and should remain in the model. 
+
+
+\newpage
+
+# Problem 7.9 (p. 290, 10 pts.)
+
+Refer to Patient satisfaction Problem 6.15. Test whether B1 = -1.0 and B2 = 0; use alpha = 0.025. State the alternatives, full and reduced models, decision rule, and conclusion.
+
+* Hypothesis test would be: 
+
+  * $H_0: \beta_1 = -1, \ \beta_2 = 0$ 
+  * $H_a:$ At least one inequality is possible
+  
+  
+* Reduced model: $Y + X_1 = \beta_0 + \beta_3X_3 + \ e$
+
+
+```{r}
+ps$New_Y_sats <- ps$Y_satisfaction + ps$X1_age
+#glimpse(ps)
+
+ps_MLR_red3 = lm(New_Y_sats ~ X3_anxiety, data = ps)
+#summary(ps_MLR_red3)
+
+anova(ps_MLR)
+```
+```{r}
+anova(ps_MLR_red3)
+```
+
+
+The partial F-test is as following:
+
+* The SSE(Full model) = 4248.8 and with DF = 42.
+* The SSE(Reduced model) = 4427.7  and with DF = 44
+
+$F^* = {\ (SSE(R) - SSE(F)) \ / \ (df_E(R) - df_E(F)) \over  SSE(F) \ / \ df_E(F)}$
+
+
+```{r}
+F_test_partial = ((4427.7 - 4248.8) / (44 - 42)) / (4248.8 / 42)
+F_test_partial
+```
+
+The p-value  = P(F-critic > F-partial)
+
+```{r}
+p_value = 1 - pf(F_test_partial, 2, 42)
+p_value
+```
+
+*The decision rule is: Reject Ho if p-value < alpha = 0.025 or if F-partial < F-critic(1-alpha, 2, 42).
+
+* **Conclusion:** With a p-value = 0.4205815 larger than alpha = 0.025, I do not reject Ho in favor of the alternative hypothesis, at 0.025 significance level. Therefore, $\beta_1 = -1$ and $\beta_2 = 0$ might be the correct assumptions for this model.
+
+

@@ -1,0 +1,523 @@
+---
+title: "Homework 4: Logistic Regression"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: "`r Sys.Date()`"
+fontsize: 12pt
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 1
+    df_print: kable
+    number_sections: yes
+urlcolor: "blue"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(ggformula) # the package for geom_spline
+library(ISLR2)
+library(broom)
+```
+
+
+
+\newpage
+
+# What are the Odds?
+
+\bigskip
+
+#### a) What is the expected fraction, $p$, of people with an odds ratio of 0.10 of defaulting on their credit card payment who will in fact default? {-}
+
+* **Answer:** The odds of defaulting on credit card payment is 0.10. Therefore, the probability (or expected fraction) of defaulting is given by $p = \frac{odds}{1 + odds}$. Hence:
+
+$$p = \frac{odds}{1 + odds} = \frac{0.10}{1 + 0.10} = \frac{0.10}{1.10} = 0.09$$
+
+So, approximately, 9% of people with odds of 0.10 will default on their credit card payment.
+
+
+\bigskip
+\bigskip
+\bigskip
+
+
+#### b) Suppose an individual has a 20% chance of defaulting on their credit card payment. What are the odds they will default? {-}
+
+* **Answer:** With p = 0.20, let's convert the probability to odds:
+
+$$odds = \frac{p}{1 - p} = \frac{0.20}{1 - 0.20} = \frac{0.20}{0.80} = 0.25$$
+
+Therefore, the odds of defaulting are 0.25, or 1 to 4.
+
+
+\newpage
+
+# What's it take to get an A?
+
+Suppose we collect data on a group of students in a undergraduate statistics class using the following variables:
+
+-   $X_1$: hours studied
+-   $X_2$: undergrad GPA, and
+-   $Y$: receive an A (1) or Not an A (0).
+
+We fit a logistic regression and produce estimated coefficients $\beta_0 = -3$, $\beta_1= 0.06$, and $\beta_2 = 1.4$.
+
+\bigskip
+
+\bigskip
+
+**The fitted response function is:**
+
+$$\hat\pi = \frac{exp(-3 + 0.06(Hours) + 1.4(GPA)}{1 + exp(-3 + 0.06(Hours) + 1.4(GPA)}$$
+
+
+
+
+\bigskip
+\bigskip
+\bigskip
+\bigskip
+
+**a) Estimate the probability a student who studies for 15 hours and has an undergrad GPA of 3.0 gets an A in the class.**
+
+
+```{r}
+p = exp(-3 + (0.06*15) + (1.4*3)) / (1 + exp(-3 + (0.06*15) + (1.4*3)))
+p
+```
+
+
+
+* **Answer:** The estimated probability of getting an `A` is about 0.891 or 89.1%.
+
+
+\bigskip
+
+
+#### b) How many hours would the student in part (a) need to study to have a 95% (predicted) chance of getting an A in the class? {-}
+
+
+
+* **Answer:** Solving the equation above for $X_1$ (hours of study) when p = 0.95, gives the results below:
+
+$$0.95 = \frac{exp(-3 + 0.06(Hours) + 1.4(3)}{1 + exp(-3 + 0.06(Hours) + 1.4(3)}$$
+I found that $X_1 = 29.07$.
+
+Therefore, the student would need to study approximately 29.07 hours to have a 95% predicted chance of getting an A.
+
+
+
+\newpage
+
+
+# Tuning the Titanic Model for Testing Data
+
+The {DALEX} package's titanic data set includes a complete list of the passengers and crew along with additional variables to include survived.
+
+-   If you install the DALEX package (using the console), you can access it with `DALEX::titanc`.
+-   Then, remove `NA`s for `age`, `fare`, and `embarked`.
+
+In class, we selected the threshold that minimized the training error classification rate. Use the reduced model with `age`, `gender`, and `class` as predictors of `survived`.
+
+\bigskip
+\bigskip
+
+**a) Split the data into training and testing data using 75% of the data for training. Set a seed of 1234 for the random number generator so the results are reproducible. Create a model and then determine which threshold minimizes the prediction error classification rate for the testing data.**
+
+
+\bigskip
+\bigskip
+
+**1. Load the data and remove NAs for age**
+
+
+```{r}
+titanic <- DALEX::titanic
+titanic <- tidyr::drop_na(titanic, c(age, fare, embarked))
+glimpse(titanic)
+```
+
+
+```{r}
+summary(titanic)
+```
+
+\bigskip
+
+**2. Define the split between training and testing data**
+
+```{r}
+set.seed(1234)
+training_pct <- 0.75
+n <-  nrow(titanic)
+Z <- sample(1:n, floor(n*training_pct))
+
+dep_train <- titanic[Z,]
+dep_test <- titanic[-Z,]
+nrow(dep_train)
+nrow(dep_test)
+```
+
+\bigskip
+
+**3. Run the model on the training data**
+
+```{r}
+lr_fit_train <- glm(survived ~ age + gender + class, 
+                    family = binomial, data = dep_train)
+summary(lr_fit_train)
+```
+
+\bigskip
+
+**4. Get predictions on the test data**
+
+```{r}
+Probs_test <- predict(object = lr_fit_train, 
+                      newdata = data.frame(dep_test), 
+                      type = "response")
+summary(Probs_test)
+```
+
+\bigskip
+
+**5. Set up the possible thresholds**
+
+```{r}
+threshold <- seq(0, 1, 0.01)
+length(threshold)
+head(threshold)
+```
+\bigskip
+
+**6. Test all the possible thresholds**
+
+```{r}
+TPR <- FPR <- err.rate <- class.rate <- rep(0, length(threshold))
+
+for (i in seq_along(threshold)) {
+Yhat <- rep(NA_character_, nrow(dep_test)) 
+Yhat <-  ifelse(Probs_test >= threshold[[i]], "yes", "no")
+
+err.rate[i] <- mean(Yhat != dep_test$survived)
+class.rate[i] <- mean(Yhat == dep_test$survived)
+
+TPR[[i]] <- sum(Yhat == "yes" & dep_test$survived == "yes") / 
+  sum(dep_test$survived == "yes")
+FPR[[i]] <- sum(Yhat == "yes" & dep_test$survived == "no") / 
+  sum(dep_test$survived == "no")
+}
+```
+
+
+\bigskip
+
+**7. Show results**
+
+```{r}
+err_rate <- data.frame(threshold, err.rate, class.rate, TPR, FPR)
+err_rate %>% 
+  slice_min(err.rate) -> min_err_rate
+min_err_rate
+```
+
+
+
+\bigskip
+\bigskip
+\bigskip
+
+* **Answer:** As it is presented above, the threshold that minimizes the error rate is p = 0.41, which allowed for a classification rate of 0.8385 or 83.85% of correct predictions.
+
+
+\newpage
+
+**b) In class, we deleted `fare` and `embarked` from the logistic regression model. Add them back into the model using the just created training and testing data. Describe the results of adding the two variables with respect to the threshold and the optimal prediction error classification rate? Which model would you recommend and why.**
+
+
+```{r}
+lr_fit_train_full <- glm(survived ~ age + gender + class + fare + embarked, 
+                         family = binomial, data = dep_train)
+summary(lr_fit_train_full)
+```
+
+
+```{r}
+Probs_test_full <- predict(object = lr_fit_train_full, 
+                           newdata = data.frame(dep_test), 
+                           type = "response")
+summary(Probs_test_full)
+length(Probs_test_full)
+```
+
+
+```{r}
+YesPredict <- 1 * (Probs_test_full > 0.41)
+table(YesPredict)
+
+tab <- table(dep_test$survived, YesPredict) #confusion matrix.
+tab
+```
+
+
+```{r}
+TPR <- FPR <- err.rate <- class.rate <- rep(0, length(threshold))
+
+for (i in seq_along(threshold)) {
+Yhat <- rep(NA_character_, nrow(dep_test)) 
+Yhat <-  ifelse(Probs_test_full >= threshold[[i]], "yes", "no")
+
+err.rate[i] <- mean(Yhat != dep_test$survived)
+class.rate[i] <- mean(Yhat == dep_test$survived)
+
+TPR[[i]] <- sum(Yhat == "yes" & dep_test$survived == "yes") / 
+  sum(dep_test$survived == "yes")
+FPR[[i]] <- sum(Yhat == "yes" & dep_test$survived == "no") / 
+  sum(dep_test$survived == "no")
+}
+```
+
+
+```{r}
+err_rate_F <- data.frame(threshold, err.rate, class.rate, TPR, FPR)
+err_rate_F %>% 
+  slice_min(err.rate) -> min_err_rate_F
+min_err_rate_F
+```
+
+
+\bigskip
+\bigskip
+\bigskip
+
+
+* **Answer:** The variables `fare` and `embarked` are not statistically significant to the model at 0.05 level and, consequently, they should not influence the survival rate. Considering such variables in the model changed the threshold from 0.41 to three different thresholds 0.37, .039 and 0.50, but allowing for the same error rate and classification rate of 16.15% and 83.85%, respectively. In this case, it's confusing to choose the best threshold for the analysis. The first model, without `fare` and `embarked`, is preferred since these variables didn't add anything to the model and caused confusion instead.
+
+
+
+
+\newpage
+
+
+**c) Generate a single plot showing the error rate curves for both models. Use color to differentiate the curves and label (in the title or by other means). Interpret the plot to answer if either model is vastly better than the other.**
+
+
+```{r}
+ggplot(err_rate_F, aes(threshold, err.rate)) + 
+  geom_point(color = "red", show.legend = TRUE) +
+  geom_point(data = err_rate, mapping = aes(threshold, err.rate), color = "blue") +
+  theme_bw() +
+  xlab("Threshold") +
+  ylab("Error Rate") +
+  ggtitle(label = "Error Rate Curves: For Full Model in Red and the Reduced Model in Blue") +
+  theme(plot.title = element_text(hjust = 0.3))
+```
+
+\bigskip
+\bigskip
+
+* **Answer:** Based on the plot, both models performed pretty much the same way. However, the model without `fare` and `embarked` would be preferred because it provides a clear threshold for testing and more reliable results.
+
+
+\newpage
+
+**d) STAT 627 Only: Create a tibble/data frame with three columns: the true positive rates for the two models, the false positive rate for the two models and a third column of text identifying the two models.**
+
+
+* Generate a single plot with the ROC curves for the two models. Interpret the plot to answer if either model is much better than the other.
+
+```{r}
+combined_data <- bind_rows(err_rate, err_rate_F, .id = "Model")
+glimpse(combined_data)
+```
+
+```{r}
+ggplot(combined_data, aes(x = FPR, y = TPR, color = Model)) +
+  geom_point(size = 2) +
+  geom_line() +
+  geom_abline(color = "red", lty = 5) +
+  ylim(0, 1) +
+  xlim(0, 1) +
+  theme_bw() +
+  scale_color_manual(
+    values = c("1" = "blue", "2" = "red"), 
+    labels = c("1" = "Reduced", "2" = "Full")) +
+  xlab("FPR") +
+  ylab("TPR") +
+  ggtitle(label = " ROC Curve") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+\bigskip
+\bigskip
+
+**Answer:** 
+
+* The curve rises above the red diagonal line, indicating the model performs better than random guessing.
+
+* The curve is somewhat steep or close to the top-left corner, so the model seems to be good in predicting survival rates.
+
+* The curve shows a steep increase in TPR as FPR increases and an indication for the best threshold at the elbow” or ’knee”.
+
+* In the lower FPR range (left corner), the curve rises quickly, suggesting the model is better at identifying positives early at lower false positive rates.
+
+
+
+\newpage
+
+# Stock Market Prediction
+
+Page 193, chap. 4, #13 (selected questions).
+
+We want to predict the behavior of the stock market in the following week. The `Weekly` data set, (from the {ISLR2} package), contains 1,089 observations with the following 9 variables.
+
+-   `Year`: The year that the observation was recorded
+-   `Lag1`: Percentage return for previous week
+-   `Lag2`: Percentage return for 2 weeks previous
+-   `Lag3`: Percentage return for 3 weeks previous
+-   `Lag4`: Percentage return for 4 weeks previous
+-   `Lag5`: Percentage return for 5 weeks previous
+-   `Volume`: Volume of shares traded (average number of daily shares traded in billions)
+-   `Today`: Percentage return for this week
+-   `Direction`: A factor with levels `Down` and `Up` indicating whether the market had a positive or negative return on a given week
+
+\bigskip
+
+```{r}
+glimpse(Weekly)
+summary(Weekly)
+```
+
+
+\newpage
+
+
+**a) Use all the data as training data and perform a logistic regression with `Direction` as the response and the five lag variables plus `Volume` as predictors. Do any of the predictors appear to be statistically significant? If so, which ones?**
+
+
+```{r}
+smw_logit <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, 
+                 family = binomial, 
+                 data = Weekly)
+summary(smw_logit)
+```
+
+
+\bigskip
+\bigskip
+
+* **Answer:** Based on the p-values from the output above, only the `Lag2` predictor is statistical significant at 0.05 level, with p-value = 0.0296.
+
+
+\newpage
+
+**b) Compute the confusion matrix and overall fraction of *correct* predictions. Explain what the confusion matrix is telling you about the types of mistakes made by the logistic regression model.**
+
+
+```{r}
+Probs_smw_logit <- predict(object = smw_logit, type = "response")
+summary(Probs_smw_logit)
+
+glm_pred_smw <- rep("Down", nrow(Weekly))
+glm_pred_smw[Probs_smw_logit > 0.5] = "Up"
+
+tab <- table(Weekly$Direction, glm_pred_smw) # confusion matrix
+tab
+
+mean(glm_pred_smw == Weekly$Direction) # fractions of correct predictions.
+mean(glm_pred_smw != Weekly$Direction)
+```
+
+\bigskip
+\bigskip
+
+* **Answer:** The considered model correctly predicted the direction of the stock market 56.10 % of the time, while getting it wrong on 43.90% of the time. Therefore, it looks like this logistic regression model is working better than random guessing alone. However, only the predictor `Lag2` seems to have an association with the response variable `Direction` and all the other variables can be dropped from the model without any cost.
+
+
+\newpage
+
+
+**c) Fit a logistic regression model with `Lag2` as the only predictor using as training data the period from 1990 to 2007 (inclusive). Compute the confusion matrix and the overall fraction of correct predictions for the held out test data (that is the data from 2008, 2009, and 2010). How does it compare to before? What does that suggest?**
+
+
+```{r}
+Weekly %>% 
+  filter (Year >= 1990 & Weekly$Year <= 2007) -> weekly_train
+nrow(weekly_train)
+
+Weekly %>% 
+  filter (Year > 2007) -> weekly_test
+nrow(weekly_test)
+```
+
+
+```{r}
+smw_logit_red <- glm(Direction ~ Lag2, 
+                     family = binomial, 
+                     data = weekly_train)
+summary(smw_logit_red)
+```
+
+
+```{r}
+Probs_test_Red <- predict(object = smw_logit_red, 
+                          newdata = data.frame(weekly_test), 
+                          type = "response")
+summary(Probs_test_Red)
+
+glm_pred_test <- rep("Down", nrow(weekly_test))
+glm_pred_test[Probs_test_Red > 0.5] = "Up"
+
+tab <- table(weekly_test$Direction, glm_pred_test) # confusion matrix
+tab
+```
+```{r}
+mean(glm_pred_test == weekly_test$Direction) # fractions of correct predictions.
+mean(glm_pred_test != weekly_test$Direction)
+```
+
+
+\bigskip
+\bigskip
+\bigskip
+
+* **Answer:** The correct prediction rate is actually lower than before, about 0.5513 or 53.13%. Hence, keeping only `Lag2` in the model, while dropping the years 2008, 2009 and 2010, did not improve the model when compared with before. Also, the predictor `Lag2` is no longer statistically significant at 0.05 level and the model is not good in predicting survival rate with it's only predictor not showing an association with the response variable `Survival`. I would suggest a random selection for the observations of the training and testing datasets and running the model again. 
+
+
+\newpage
+
+**d) Plot an ROC curve for the logistic regression on the test data from (c), using different probability thresholds and add an abline for FPR = TPR (colored red). Interpret the plot in terms of how useful the model might be.**
+
+
+```{r}
+threshold <- seq(0, 1, 0.01)
+
+TPR <- FPR <- rep(0, length(threshold))
+
+for (i in seq_along(threshold)) {
+  Yhat <- rep(NA_character_, nrow(weekly_test)) 
+  Yhat <-  ifelse(Probs_test_Red >= threshold[[i]], "Up", "Down")
+
+  TPR[[i]] <- sum(Yhat == "Up" & weekly_test$Direction == "Up") / 
+    sum(weekly_test$Direction == "Up")
+  FPR[[i]] <- sum(Yhat == "Up" & weekly_test$Direction == "Down") / 
+    sum(weekly_test$Direction == "Down")
+}
+
+ggplot(tibble(TPR, FPR), aes(FPR, TPR)) + 
+  geom_point() +
+  geom_abline(color = "red", lty = 2) +
+  theme_bw()
+```
+
+
+* **Answer:** From the plot above, the ROC curve is not good and the model isn't reliable at all in predicting survival rate.

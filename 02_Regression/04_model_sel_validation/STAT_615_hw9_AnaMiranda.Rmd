@@ -1,0 +1,193 @@
+---
+title: "DATA 615 - Regression: Homework - 9"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(leaps)
+```
+
+
+\newpage
+
+
+# Problem 9.18. Job Proficiency (p. 379. 30pts: a. 5, b. 15 (10 for the statistics, 5 for comments.), add part c. 10)
+
+* In part a, ignore the statement “Use alpha limits of 0.05 and 0.10 for adding or deleting variable, respectively. Instead, use the default selection criterion in the software. Note that we will use "stepwise" in part (a).
+
+* In part b, do the following: 
+
+  * Find/Compute R2, adjusted-R2, Mallow's Cp, AIC, SBC (i.e., BIC), PRESS for the final model that you selected.
+  * Find/Compute R2, adjusted-R2, Mallow's Cp, AIC, SBC (i.e., BIC), PRESS for the regression model that includes the first-order terms of all 4 predictors.
+  * Summarize your results.
+  
+* **In addition to part (a) and (b), answer the following question.**
+
+    c. Use R function regsubsets( ) to conduct the best subset selection. For those model comparison criteria can be found in the output, are their values the same as the ones you calculated in part (a)?
+
+\bigskip
+
+Refer to Job proficiency Problems 9.10 and 9.11:
+
+A personnel officer in a governmental agency administered four newly developed aptitude tests to each of 25 applicants for entry-level clerical positions in the agency. For purpose of the study, all 25 applicants were accepted for positions irrespective of their test scores. After a probationary period, each applicant was rated for proficiency on the job. The scores on the four tests (X1, X2, X3, X4) and the job proficiency score (Y) for the 25 employees were as follows:
+
+\bigskip
+
+```{r}
+jp <- read.table("./data/CH09PR10.txt", header = F)
+colnames(jp) <- c("Y_job_prof_score", "X1_test_score", "X2_test_score", "X3_test_score", "X4_test_score")
+glimpse(jp)
+```
+
+\newpage
+
+### a. Variable selection using stepwise selection criteria. {.unnumbered}
+
+
+```{r}
+jP_MLR_allin <- lm(data = jp, Y_job_prof_score ~ .)
+
+step(jP_MLR_allin, direction = "both")
+```
+\bigskip
+\bigskip
+
+**Findings:** The stepwise selection criteria has selected the predictors X1, X3 and X4 to fit the model for job proficiency, based on AIC = 73.85, which was the smallest AIC found considering the full model provided initially. 
+
+\bigskip
+
+**The estimated regression function is:**
+
+$$\widehat{job\ proficiency} = -124.2000 + 0.2963X1 + 1.3570X3 + 0.5174X3$$
+
+
+
+\newpage
+
+### b. Find/Compute R2, adjusted-R2, Mallow's Cp, AIC, SBC (i.e., BIC), PRESS for the final model that you selected in part (a) and for the regression model that includes the first-order terms of all 4 predictors.? {.unnumbered}
+
+
+I will use the function below provided by Lab 5 practice to compute R2, adjusted-R2, AIC, BIC and PRESS:
+
+```{r}
+selcri<-function(lmout)
+{
+n <- length(lmout$fit)
+rsq <- summary(lmout)$r.sq
+adj.rsq <- summary(lmout)$adj.r.sq
+aic <- extractAIC(lmout)[2]
+bic <- extractAIC(lmout, k = log(n))[2]
+press <- sum((lmout$residuals/(1 - hatvalues(lmout)))^2)
+cbind(rsq, adj.rsq, aic, bic, press)
+}
+```
+
+
+```{r}
+jP_MLR_final <- lm(data = jp, Y_job_prof_score ~ X1_test_score + X3_test_score + X4_test_score)
+```
+
+
+```{r}
+paste("Results for the final model found in part (a): ")
+selcri(jP_MLR_final)
+```
+\bigskip
+
+```{r}
+paste("Results for the full model with all 4 predictor in it: ")
+selcri(jP_MLR_allin)
+```
+
+\bigskip
+
+To compute Mallow's Cp:
+
+\bigskip
+
+```{r}
+anova(jP_MLR_final)
+anova(jP_MLR_allin)
+```
+
+
+\bigskip
+
+```{r}
+n = nrow(jp)
+
+p_final = 4
+sse_final = 348.2
+
+p_allin = 5
+sse_allin = 336.0
+mse_allin = 16.8
+
+
+mallow_final = sse_final / mse_allin - (n - 2 * p_final)
+paste("Mallows' C for the final model found in part (a): ", round(mallow_final, 2))
+  
+mallow_allin = sse_allin / mse_allin - (n - 2 * p_allin)
+paste("Mallows' C for the full model with all 4 predictor in it: ", mallow_allin)
+
+```
+
+
+**Findings**: 
+
+* $R^2$ for both models are similar and considered high, around 96%, meaning that both models explain a large proportion of the variation in job proficiency. However, since the models contain different number of parameters, $R^2$ is not considered an appropriate measure to compare the models.
+
+* $Adj-R^2$ for both models are also very high and differ by very little from each other. The $Adj-R^2$ for the final model from part (a), with X1, X3 and X4, has a higher $Adj-R^2$ and is preferred.
+
+* Both AIC and BIC for the model from part (a) are smaller than the ones from the full model, once again indicating the model from part (a) is preferred.
+
+* PRESS for the final model from part (a) is smaller and, therefore, preferred as well.
+
+* Mallows' CP for the model in part (a) with 3 predictors is smaller than the one with all 4 predictors in the model and therefore preferred.
+
+
+
+\newpage
+
+### c. Use R function regsubsets( ) to conduct the best subset selection. For those model comparison criteria can be found in the output, are their values the same as the ones you calculated in part (c)?. {.unnumbered}
+
+```{r}
+temp <- regsubsets(Y_job_prof_score ~ . , data = jp)
+bestsub <- summary(temp)
+bestsub
+```
+
+```{r}
+data.frame(n.pred = seq(1:4),
+           n.par = seq(2:5),
+           R2 =  bestsub$rsq,
+           adj_R2 = bestsub$adjr2,
+           SBC = bestsub$bic,
+           Mallows_Cp = bestsub$cp
+           )
+```
+
+\bigskip
+
+**Findings:** 
+
+* The regsubsets() function can compute: $R^2$, $Adj-R^2$, SBC (or BIC) and Mallows' Cp.
+
+* With exception of BSC, all the other values are the same as the values computed above in part (b).
+
+
+
+

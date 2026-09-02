@@ -1,0 +1,413 @@
+---
+title: "Lab 13 - Random Forests"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc_depth: 2
+    theme: pulse
+execute: 
+  warning: false
+  message: false
+---
+
+<style>
+.my-textbox {
+  background-color: #f5ebeb;
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+</style>
+
+
+# Random Forests
+
+For this lab we will use the `Auto` dataset.
+
+
+##### a) Load the {ISLR2} `Auto` data set and review it. {-}
+
+```{r}
+library(tidyverse)
+
+data(Auto, package = "ISLR2")
+glimpse(Auto)
+```
+
+* Use `tree::tree()` to create a single tree for predicting `mpg` based on the other numeric variables.
+
+* How many total nodes and terminal nodes does it have?
+
+
+```{r}
+tree::tree(mpg ~ . -name, data = Auto)
+```
+<br>
+<div class="my-textbox">
+
+The regression tree above has 23 total nodes and 8 terminal nodes.
+
+</div> 
+<br>
+
+
+##### b) Use `randomForest::randomForest` to predict `mpg` using all the other variables but `name`. {-}
+
+* Since this is a regression tree, use the argument `importance = TRUE` so both `%IncMSE` and `IncNodePurity` are calculated (we will look at them next).
+
+* Look at the results and plot them.
+
+* Interpret the results.
+
+```{r}
+library(randomForest)
+set.seed(my_seed <- 1234) 
+rf <- randomForest(mpg ~ . -name, data = Auto, importance = TRUE)
+rf
+```
+
+
+```{r}
+plot(rf)
+```
+```{r}
+which.min(rf$mse)
+```
+
+
+<br>
+<div class="my-textbox">
+
+The Random Forest method for the regression tree analysis of `mpg` on all other variables in the dataset, generated 500 trees total. For each tree it used two variables at each node split, which is the default if not specified differently.
+
+The minimum MSE computed was 7.53 and it explained 87.61% of the variation in `mpg`.
+
+</div> 
+<br>
+
+
+
+##### c) The `importance()` function extracts the calculated measures of importance from the random forest object. {-}
+`
+Look at the results of `importance()` and `varImpPlot()` and interpret them.
+
+
+```{r}
+importance(rf)
+```
+
+
+
+```{r}
+importance(rf)[order(importance(rf)[, 1], decreasing = TRUE), ] |> round(0)
+```
+
+
+```{r}
+importance(rf)[order(importance(rf)[, 2], decreasing = TRUE), ] |> round(0)
+```
+
+
+```{r}
+varImpPlot(rf)
+```
+
+<br>
+<div class="my-textbox">
+
+* % Increase in MSE: This measures the increase in the mean squared error when a particular feature is excluded or permuted from the model. A high %IncMSE indicates a feature has a critical role in the model's overall predictive ability. This is a common way to evaluate which features contribute the most to the model’s accuracy.
+
+* Increase in Node Purity: This is a measures of total increase in node purity (or reduction in impurity) across all trees in the forest when a particular feature is used to split nodes. Features that increase node purity the most are essential to making the model more reliable. The more a feature contributes to reducing impurity, the more important it is for making accurate predictions. A higher value is better and indicates that the feature is useful for making better splits and is important for the model.
+
+The most important variable on average across the 500 trees is `year` based on *% Increase in MSE* and `displacement` based on *Increase in Node Purity* value.
+
+</div> 
+<br>
+
+
+
+##### d) Use a validation set with 200 observations for training to estimate the prediction MSE. {-} 
+
+
+* Compare the results to the training MSE from b.
+
+
+```{r}
+set.seed(my_seed)
+Z <- sample(1:nrow(Auto), 200)
+set.seed(my_seed)
+rfcv <-  randomForest(mpg ~ .-name, data = Auto, subset = Z)
+rfcv
+Yhat <-  predict(rfcv, newdata = Auto[-Z,])
+```
+
+
+```{r}
+mean((Yhat - Auto$mpg[-Z])^2)
+```
+
+<br>
+<div class="my-textbox">
+
+The prediction MSE is 7.01 and it's lower than the training MSE of 7.53 considered in part b using wall the observations from `Auto`. 
+
+</div> 
+<br>
+
+
+
+##### e) Let’s optimize the number of tree that we need to grow. The default is 500, but we can decide based on the performance metrics. {-}
+
+
+* What number of trees produce the minimum MSE in b.? Which produced the maximum R2?
+
+* How about the top five lowest MSE or highest R2?
+
+```{r}
+which.min(rf$mse)
+```
+
+```{r}
+which.max(rf$rsq)
+```
+
+```{r}
+order(rf$mse)[1:5]
+```
+
+```{r}
+order(rf$rsq, decreasing = TRUE)[1:5]
+```
+
+<br>
+<div class="my-textbox">
+
+490 trees provided the best estimates for both MSE and R-squared. The next top 4 estimates are for trees 412, 413, 411 and 491 respectively, as this is also shown in the plot in part (b) above.
+
+</div> 
+<br>
+
+
+##### f) Use tuneRF() to tune (optimize) the number of variables to be tried for each split with the training validation set. {-}
+
+
+* Interpret the results.
+
+```{r}
+set.seed(my_seed)
+tuneRF(x = Auto[Z,c(-1, -9)], y = Auto[Z, 1])
+```
+
+<br>
+<div class="my-textbox">
+
+The plot shows that 4 variables per split actually has the lowest OOB MSE. Next comes 7 and 2 variables per split, which would provide the smallest estimates sequentially. The default number of variables per split is 2 though.
+
+</div> 
+<br>
+
+
+##### g) Now use a for-loop to optimize the number of variables to try at each split and then select the best number of trees for each number of variables. {-}
+
+* Create a larger test set of 300.
+
+* Plot both the Cross-validated error for each number of variables and the optimal number of trees for each number of variables.
+
+* Interpret the result.
+
+```{r}
+set.seed(my_seed)
+Z <- sample(nrow(Auto), 300)
+cv_err  <- n_trees <- rep(0, 7)
+
+for (m in 1:7) {
+set.seed(my_seed)
+rfm <- randomForest(mpg ~. -name, data = Auto[Z,], mtry = m)
+n_trees[m] <-  which.min(rfm$mse)
+set.seed(my_seed)
+rfmt = randomForest(mpg ~. -name, data = Auto[Z,], mtry = m, ntree = n_trees[[m]])
+Yhat = predict(rfmt, newdata = Auto[-Z,])
+cv_err[[m]] <- mean((Yhat - Auto$mpg[-Z])^2)
+}
+```
+
+
+```{r}
+which.min(cv_err)
+```
+
+
+```{r}
+cv_err[which.min(cv_err)]
+```
+
+
+```{r}
+n_trees[which.min(cv_err)]
+```
+
+
+```{r}
+plot(cv_err)
+```
+
+
+```{r}
+plot(n_trees)
+```
+
+<br>
+<div class="my-textbox">
+
+From the trial above we found that 3 variables per split provides the smaller MSE with 273 number of trees.
+
+</div> 
+<br>
+
+
+###### h) Use the number of variables and trees from previous part and construct an optimal random forest. {-}
+
+* Compare the results to the original random forest model from b.
+
+```{r}
+set.seed(my_seed)
+rfopt <- randomForest(mpg ~. -name, data = Auto[Z,], mtry = which.min(cv_err),
+             ntree = n_trees[which.min(cv_err)], importance = TRUE)
+rfopt
+```
+
+
+```{r}
+plot(rfopt)
+```
+
+
+```{r}
+varImpPlot(rfopt)
+```
+
+<br>
+<div class="my-textbox">
+
+* Original Tree: The tree had MSE of 7.53 and explained 87.61% of the variance. It used two variables per split and consisted of 500 trees.
+
+* Optimized Tree: The optimized model achieved a MSE of 7.32 and explained 87.75% of the variance. It used three variables per split and 273 trees.
+
+* Variable Importance: The importance of the first two variables is the same between the original and optimized models, with slight variations in the remaining variables.
+
+* Correlation: Several of the variables are highly correlated, which could influence feature importance.
+
+* Performance Comparison: Although the optimized tree outperforms the original in terms of training metrics, results may vary depending on the random seed. However, since the optimization used cross-validation, the performance is a more reliable estimate for prediction.
+
+* Observation: Using three variables per split increases the computational cost per tree, but this is partially offset by the reduced number of trees (273 instead of 500) in the optimized model.
+
+</div> 
+<br>
+
+
+
+##### i) The following results are averages across the 273 trees in the optimal tree. Compare them to the number of nodes in the single tree from a. What does it mean about trees in random forests compared to single trees? {-}
+
+
+```{r}
+k <- 1:n_trees[which.min(cv_err)]
+purrr::map(k, \(k) data.frame(
+  n_nodes = getTree(rfopt, k, labelVar = TRUE) |> 
+             nrow(),
+  n_terminal_nodes = (getTree(rfopt, k, labelVar = TRUE)$status == -1) |> sum()
+)
+) |> 
+purrr::list_rbind() |> 
+  dplyr::summarize(mean_nodes = round(mean(n_nodes),1), 
+                   mean_terminal_nodes = round(mean(n_terminal_nodes),1),
+                   `%_terminal` = round(mean(n_terminal_nodes/n_nodes),1))
+```
+
+
+```{r}
+library(tidyverse)
+k <- 1:n_trees[which.min(cv_err)]
+purrr::map(k, \(k) getTree(rfopt, k, labelVar = TRUE)$`split var` |> 
+             table() |> 
+             as.data.frame() |> 
+             dplyr::mutate(tree = k)) |> 
+  purrr::list_rbind() |> 
+  tidyr::pivot_wider(names_from = Var1, values_from = Freq) |> 
+  summarize(across(2:8, \(col) mean(col, na.rm = TRUE) |> round(1))) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Avg_Splits_per_Tree") |> 
+  arrange(desc(Avg_Splits_per_Tree))
+```
+
+
+##### j) Now use `gbm::gbm()` with the validation set training data to create a boosted tree. {-}
+
+* Use 10,000 trees, and K=10 fold cross-validation with shrinkage at 0.001.
+
+* Check the output and the summary of the results and interpret.
+
+```{r}
+library(gbm)
+```
+
+```{r}
+set.seed(my_seed)
+boostm <- gbm(mpg ~ . - name, data = Auto[Z,], 
+              n.trees = 10000, distribution = "gaussian",
+              cv.folds = 10, shrinkage = .001)
+boostm
+```
+
+
+```{r}
+gbm.perf(boostm, method = "cv")
+```
+
+
+```{r}
+summary(boostm, cBars = 5)
+```
+
+
+```{r}
+#| layout-ncol: 3
+#| fig-cap: 
+#|   - "horsepower"
+#|   - "weight"
+#|   - "year"
+plot(boostm, "horsepower")
+plot(boostm, "weight")
+plot(boostm, "year")
+```
+
+
+* Use `pretty.gbm.tree()` to look at the structure of the 10th tree and compare to the tree from a. and a tree from the random forest
+
+```{r}
+pretty.gbm.tree(boostm, i.tree = 10)
+```
+
+
+* Use the test set to get a prediction estimate of MSE and compare to the others.
+
+* Recommend a model.
+
+```{r}
+Yhat <- predict(boostm, newdata = Auto[-Z,])
+```
+
+
+```{r}
+mean((Yhat - Auto$mpg[-Z])^2)
+```
+
+
+```{r}
+100 * (1 - sum((Yhat - Auto$mpg[-Z])^2)/sum((Auto$mpg[-Z] - mean(Auto$mpg[-Z]))^2))
+```
+

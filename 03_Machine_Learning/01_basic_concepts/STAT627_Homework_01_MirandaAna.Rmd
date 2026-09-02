@@ -1,0 +1,300 @@
+---
+title: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(ggformula) # the package for geom_spline
+library(broom)
+library(knitr)
+library(forcats)
+```
+
+
+
+\newpage
+
+
+# Instructions {.unnumbered}
+
+1.  Use the starter file or copy the questions to a new document of your choice.
+2.  Answer each question.
+3.  If code is required, show your code using R or python. Be sure to show and interpret your results but NOT show all the data.
+4.  If work by hand is required, you may take a picture of your work and include/embed in your document or upload as an attachment. Be sure to label the question and include your interpretation if required in the document.
+5.  Convert your document to an HTML or PDF document and check the submission for correctness, e.g., graphs are showing and excessive data is not.
+    - If using HTML, be sure to set the Quarto YAML of `embed-resources: true`.
+6. Submit both the code file and the rendered HTML or PDF on Canvas by the due date for your section.
+
+\bigskip
+
+
+# Flexible or Inflexible (3 points)
+
+For each part, indicate whether we would generally expect the performance of a flexible statistical learning method to be better or worse than an inflexible method. **Justify your answer**.
+
+- The sample size $n$ is extremely large, and the number of predictors $p$ is small.
+  - The performance of a flexible statistical learning method would be better in this case because there is enough data to accurately estimate complex relationships without overfitting. The risk of high variance is reduced due to the large $n$, so the flexibility can help reduce bias and capture better the true nature of the data.
+  
+\bigskip
+
+
+- The number of predictors $p$ is extremely large, and the number of observations $n$ is small.
+  - The performance of an inflexible method would do better in order not to overfit the data.
+
+
+\bigskip
+
+
+- The relationship between the predictors and response is highly non-linear.
+  - A flexible method would perform better here because it would capture more accurately the non-linear relationship of the data, reducing variance and bias for instance.
+
+
+\bigskip
+
+- The variance of the error terms is extremely high.
+  - Inflexible methods would perform better here. When error variance is high, adding model flexibility increases variance further, which can worsen prediction accuracy.
+  
+  
+\newpage
+
+# Potential Applications of SML (2 points)
+
+Identify some examples of potential real-life applications for statistical learning. In each example, describe the question of interest in terms of the response variable, identify possible possible predictor/explanatory variables, and state the goal - inference or prediction.
+
+
+## Describe two real-life applications in which classification might be useful.
+
+1) Determining Risk Factors for Heart Disease
+
+* Question: Which factors are associated with higher risk of heart disease?
+
+* The response variable: Presence or absence of heart disease indicator
+
+* The predictors/explanatory variables: Age, Gender, Cholesterol levels, Blood pressure, Smoking status, Family history, Physical activity levels
+
+* The goal: Inference, since the goal is understanding which variables influence the risk of heart disease, not just making predictions.
+
+\bigskip
+
+2) Credit Card Fraud Detection
+
+* Question: Is a specific credit card transaction fraudulent?
+
+* The response variable: A binary variable indicator for fraud (1) or legitimate (0).
+
+* The predictors/explanatory variables: Transaction amount, transaction time, transaction location, transaction frequency and merchant type.
+
+* The goal: Prediction, since the objective is to detect suspicious activity in real-time in order to prevent financial scams.
+
+
+## Describe two real-life applications in which regression might be useful.
+
+1) Predicting Student Academic Performance
+
+* Question: How well will a student perform academically?
+
+* The response variable: Final exam score.
+
+* The predictors/explanatory variables: Hours of study per week, attendance rate, socioeconomic background, sex, parents educational level.
+
+* The goal: Prediction, since the aim is to predict students' performance so educators can intervene early if needed, or formulate support strategies.
+
+\bigskip
+
+2) Forecasting Electricity Demand
+
+* Question: How much electricity will a city need within a specific time frame, such as a day or an hour?
+
+* The response variable: Total electricity consumption
+
+* The predictors/explanatory variables: Temperature, day of the week, time of day, historical electricity usage
+
+* The goal: Prediction, since the goal is to predict future energy needs so utility companies can manage supply and demand accordingly.
+
+\newpage
+
+# Classification or Regression? (3 points)
+
+Explain whether each scenario is a classification or regression problem, identify the response variable, and indicate whether we are most interested in inference or prediction. Finally, provide the number of observations $n$ and the number of explanatory/predictor variables $p$.
+
+
+A) We collect a set of data on the top 500 publicly-traded firms in the US. For each firm we record profit, number of employees, industry, average stock price over the last year, and the CEO salary. We are interested in understanding the relationships, if any, between the variables and CEO salary.
+
+* Classification or regression problem? Regression.
+* Response variable: CEO salary.
+* Inference or prediction? Inference.
+* Number of observations, $n$: 500 firms.
+* number of explanatory/predictor variables, $p$: 4 predictors.
+
+\bigskip
+
+B) We are considering launching a new product and wish to know whether it will be a success or a failure. We collect data on 20 similar products that were launched in the last two years. For each product we have recorded whether it was a success or failure, price charged for the product, marketing budget, competition price, and nine other variables.
+
+* Classification or regression problem? Classification
+* Response variable: Product indicator of success (1) or failure (0).
+* Inference or prediction? Prediction.
+* Number of observations, $n$: 20 products.
+* number of explanatory/predictor variables, $p$: 12 predictors.
+
+\bigskip
+
+C) We are interested in estimating future percent changes in the US dollar in relation to the weekly changes in the world stock markets. Hence we collect weekly data for 2022. For each week we record the percent change in the dollar, the percent changes in the US S&P 500, United Kingdom Stock Market Index (GB100), the Japan Stock Market Index (JP225), the China Shanghai Composite Stock Market Index, the  Indian National Stock Exchange Index NIFTY 50  and the United Arab Emirates Stock Market (ADX General).
+
+
+* Classification or regression problem? Regression
+* Response variable: Percent change in US dollar
+* Inference or prediction? Prediction.
+* Number of observations, $n$: 52 weeks
+* number of explanatory/predictor variables, $p$: 6 predictors.
+
+\newpage
+
+# Bias Variance Trade Off (3 points)
+
+State True or False and then justify why the following are true or false in a single sentence.
+
+- Increasing degrees of freedom to be large enough will always reduce Mean Squared Error to 0.
+  - False. Increasing degrees of freedom reduces bias but increases variance, and to much flexibility can lead to overfitting, which actually increases MSE.
+  
+\bigskip
+
+- Reducing bias is less important than reducing variance as a smaller range of predicted values is always a better solution for your model.
+  - False. The bias-variance trade-off means that both bias and variance must be balanced. focusing only on reducing variance can lead to high bias and poor prediction.
+
+\bigskip
+
+- Choosing 50% of the data for training data always provides the best balance between a good fit for the model and an accurate predicted MSE.
+  - False. There is no fixed optimal split like 50%. The ideal training/test split depends on the size of the data set. In general, larger training data sets, 70–80% split, lead to better model performance.
+  
+
+\newpage
+
+
+# College Data (9 points)
+
+This exercise uses the College data set from our textbook {ISLR2} package. It contains a number of variables for 777 different universities and colleges in the US. Use `?College` for information on the variables.
+
+## Load the data and take a look at it, e.g., with `dplyr::glimpse()`. How many possible predictors are there? (1)
+
+```{r}
+library(ISLR2)
+data(College, package = "ISLR2")
+glimpse(College)
+```
+
+\newpage
+
+## Produce a scatterplot matrix of the `log()` of columns 2, 3, and 4 of the data (`Apps`, `Accept`, `Enroll`) and **interpret the plot**. (2)
+
+-   You can use `pairs()` or `GGally::ggpairs().`
+-   Recall you get all rows of contiguous columns `x` to `y` of an R data frame `A` by using the subset (select) syntax `A[, x:y]`.
+
+```{r}
+pairs(~ log(Apps) + log(Accept) + log(Enroll), data = College)
+```
+
+**Findings:**
+
+* The scatter plot matrix shows that all three variables are positively and strongly correlated with each other, after taking their log transformations, indicating that such transformation should be considered on future statistical analysis.
+
+
+\newpage
+
+## Produce a graph with  boxplots for `Outstate` vs. `Private` and **interpret the plot**. (1)
+
+```{r}
+ggplot(College, mapping = aes(x = Outstate, 
+                              y = Private)) +
+geom_boxplot() +
+theme_bw() +
+ggtitle(label = "Out of State Tuition by College Type") +
+theme(plot.title = element_text(hjust = 0.4))
+```
+
+\bigskip
+\bigskip
+
+
+**Findings:**
+
+* The boxplot shows that private colleges actually charge much higher out-of-state tuition compared to public colleges. Both groups contain outliers. Out-of-state tuition seem to be mostly normally distributed within each group.
+
+
+
+
+\newpage
+
+## Create a new qualitative variable, `Elite` , by dividing the universities into two groups based on whether or not the proportion of students coming from the top $10\%$ of their high school classes is greater than $60\%$. 
+
+-   Use `sum()` to show the number of `Elite` universities. (1)
+-   Produce a set of boxplots for `Grad.Rate` versus `Elite` and **interpret the plot**. (1)
+
+```{r}
+College$Elite <- College$Top10perc > 60
+sum(College$Elite)
+```
+
+
+```{r}
+ggplot(College, mapping = aes(x = Grad.Rate, 
+                              y = Elite)) +
+geom_boxplot() +
+theme_bw() +
+ggtitle(label = "Elite Colleges by Graduation Rate") +
+theme(plot.title = element_text(hjust = 0.4))
+```
+
+
+**Findings:**
+
+* The boxplot shows that elite colleges have higher graduation rates compared to non-elite colleges. This may suggest that students at elite institutions are more likely to complete their degrees. Both groups contain outliers. Graduation rate seems to be slightly skewed to the left by either groups.
+
+
+\newpage
+
+## Use the `lm()` function to find a regression equation for predicting the number of new students (`Enroll`) based on the graduation rate (`Grad.Rate`), qualifications of the faculty (`PhD`), the student-faculty ratio, and expenses for `Room.board` and `Books`. Look at the output of `summary()`. (3)
+
+-   Do you think this this model is flexible enough to be useful? Why or Why Not? What would you recommend?
+-   Look at the output of `plot()`.
+    -   How do the results affect your previous answer and why?
+
+```{r}
+reg <- lm(Enroll ~ Grad.Rate + S.F.Ratio + PhD + Room.Board + Books, data = College)
+summary(reg)
+```
+
+**Findings:**
+
+* The model is statistically significant at 5% level in predicting enrollment numbers with a p-value: < 2.2e-16. However, the proportion of variance in enrollment that is explained by the model is about 20% and can be considered low, with an Adjusted R-squared = 0.2045. The predictor `Grad.Rate` is not statistically significant in the model, with a p-value = 0.3927. It looks like the model is flexible enough to be useful, but the Adjusted R-squared is suggesting otherwise. I would recommend a non linear model in order to find a better method to predict enrollment.
+
+
+
+\newpage
+
+```{r}
+par(mfrow=c(2, 2))
+plot(reg)
+```
+
+\bigskip
+\bigskip
+
+**Findings:**
+
+* The residuals are not scatted around zero, but shows a pattern and indicates that the assumption of linearity and constant variance do not hold. The Q-Q plot also indicates that the assumption of normality of the residuals does not hold. The curved reference line of the scale-location plot also suggests that the assumption of constant variance is not appropriate. There are several influential cases in the data and that also affects the overall model fit.
+

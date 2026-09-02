@@ -1,0 +1,685 @@
+---
+title: "Homework 5: LDA and QDA"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    theme: pulse
+execute: 
+  warning: false
+---
+
+
+
+<style>
+.my-textbox {
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+</style>
+
+
+
+# LDA v QDA
+
+\(a\) Compare the expected performance of LDA and QDA on the training set versus the test set if the true Bayes decision boundary separating the categories is *linear*. 
+
+<br>
+<div class="my-textbox">
+**Answer:** LDA is expected to perform better, or at least similarly, on the test set and worse on the training set when the true decision boundary is linear.
+</div> 
+<br>
+
+
+\(b\) Compare the expected performance of LDA and QDA on the training set versus the test set if the true Bayes decision boundary is *non-linear*.
+
+<br>
+<div class="my-textbox">
+**Answer:** QDA is expected to perform better on both training and test sets when the true boundary is non-linear, assuming it has sufficient data for analysis.
+</div> 
+<br>
+
+
+\(c\) In general, as the sample size $n$ increases, do we expect the *test prediction accuracy* of QDA relative to LDA to improve, decline, or be unchanged? Why?
+
+<br>
+<div class="my-textbox">
+**Answer:** As the sample size increases, we expect the QDA's test prediction accuracy to improve relative to LDA's, specially if the true boundary is non-linear. That is because QDA estimates more parameters than LDA considering the separate covariance matrices for each class and, therefore, QDA may overfit due to high variance. As $n$ increases, QDA’s estimates become more accurate, reducing overfitting and variance.
+</div> 
+<br>
+
+
+\(d\) **True or False**: If the Bayes decision boundary for a given problem is linear, we will probably achieve a superior *test error rate* using QDA rather than LDA because QDA is flexible enough to model a linear decision boundary. **Justify your answer.**
+
+<br>
+<div class="my-textbox">
+**Answer:** That's false. LDA is more likely to have lower test error when the true boundary is linear because it makes correct and simpler assumptions, while QDA will still estimate more parameters than necessary, leading to higher variance, which can negatively influence test performance, especially with small sample data.
+</div> 
+<br>
+
+
+
+# Predicting Issuance of a Stock Dividend
+
+Suppose we wish to predict whether a given stock will issue a dividend this year ("Yes" or "No") based on last year's percent profit which we designate by $X$. 
+
+We examine a large number of companies and discover:
+
+1.  The sample mean for percent profit for companies that issued a dividend was $\bar{X} = 20$, while the sample mean for those that didn't was $\bar{X} = 5$.
+2.  The sample variance of $X$ was the same for both sets of companies at $s^2 = 25$.
+3.  70% of companies issued dividends.
+
+Assume the percent profit $X$ follows a Normal($\mu, \sigma^2$) distribution.
+
+Use the estimated parameters $\bar{X}$ and $s^2$ to predict the probability a company with a last year's percent profit of $X = 10$ will issue a dividend this year.
+
+Hint: Use Bayes theorem with the [probability density function](https://simple.wikipedia.org/wiki/Probability_density_function) for a Normal random variable which is $f(x) = \frac{1}{\sigma \sqrt{2 \pi}} e^{\frac{−(x−\mu)^2}{2\sigma^2}}$. 
+
+
+<br>
+
+Information:
+
+* Mean(Yes): $\bar{X} = 20$
+* Mean(No): $\bar{X} = 5$
+* The sample variance: $s^2 = 25$
+* P(Yes) = 0.70
+* P(No) = 0.30
+* Percent profit: X = 10
+
+<br>
+
+```{r}
+x <- 10
+prior_good <- 0.7
+prior_bad <- 1 - prior_good
+
+good <- prior_good * (1 / (sqrt(25) *  sqrt(2 * pi))) * (exp(-((x - 20)^2) / (2*25)))
+good
+
+yes <- (1 / (sqrt(2*pi*25))) * exp(- (((x-20)^2) / (2*25)))
+yes * prior_good
+
+```
+
+
+```{r}
+bad <- prior_bad * (1 / (sqrt(25) *  sqrt(2 * pi))) * (exp(-((x - 5)^2) / (2*25)))
+bad
+```
+
+```{r}
+good / (good + bad)
+```
+
+Hence,
+
+$$P(Yes / X = 10) = 0.342$$
+
+<br>
+<div class="my-textbox">
+**Answer:** So, there is a 34.2% chance the company will issue a dividend this year, given that last year's percent profit was 10%.
+</div> 
+<br>
+
+
+# Weekly Stock Market Predictions (or is it Weakly:))
+
+We want to continue trying to predict the behavior of the stock market in the following week. We computed a KNN estimate and a Logistic regression estimate already. We will now look at LDA and QDA using the {MASS} package and compare across these prediction methods.
+
+The `Weekly` data set, (from the {ISLR2} package), contains 1,089 observations with the following 9 variables.
+
+-   `Year`: The year that the observation was recorded
+-   `Lag1`: Percentage return for previous week
+-   `Lag2`: Percentage return for 2 weeks previous
+-   `Lag3`: Percentage return for 3 weeks previous
+-   `Lag4`: Percentage return for 4 weeks previous
+-   `Lag5`: Percentage return for 5 weeks previous
+-   `Volume`: Volume of shares traded (average number of daily shares traded in billions)
+-   `Today`: Percentage return for this week
+-   `Direction`: A factor with levels `Down` and `Up` indicating whether the market had a positive or negative return on a given week
+
+
+<br>
+
+
+```{r}
+#| include: true
+#| message: false
+
+library(tidyverse)
+library(ISLR2)
+library(class)
+library(MASS)
+
+glimpse(Weekly)
+summary(Weekly)
+```
+
+
+
+##### (a) Use LDA with a training data period from 1990 to 2007, with `Lag2` as the only predictor. Compute the confusion matrix and the overall fraction of **correct predictions** for the held-out test data (that is, the data from 2008, 2009, and 2010). {-}
+
+
+
+```{r}
+Weekly_train <- Weekly %>%
+  filter(Year >= 1990 & Year <= 2007)
+nrow(Weekly_train)
+
+Weekly_test <- Weekly %>%
+  filter(Year > 2007)
+nrow(Weekly_test)
+
+lda_out <- lda(Direction ~ Lag2, data = Weekly_train)
+lda_out
+```
+
+```{r}
+lda_pred <- predict(lda_out , Weekly_test)
+names(lda_pred)
+
+table(Weekly_test$Direction, lda_pred$class)
+```
+
+```{r}
+mean(Weekly_test$Direction == lda_pred$class) |> round(3)
+```
+<br>
+<div class="my-textbox">
+**Answer:** The classification rate is 0.545, meaning that the LDA model correctly predicted the behavior of the stock market in the following week about 54.5% of the instances in the test data.
+</div> 
+<br>
+<br>
+
+
+##### (b) Repeat (a) using QDA. {-}
+
+
+```{r}
+qda_out <- qda(Direction ~ Lag2, data = Weekly_train)
+qda_out
+
+qda_pred <- predict(qda_out , Weekly_test)
+names(qda_pred)
+
+table(Weekly_test$Direction, qda_pred$class) 
+
+mean(Weekly_test$Direction == qda_pred$class) |> round(3)
+```
+
+
+<br>
+<div class="my-textbox">
+**Answer:** The classification rate is 0.538, meaning that the QDA model correctly predicted the behavior of the stock market in the following week about 53.8% of the instances in the test data.
+</div> 
+<br>
+<br>
+
+
+##### (c) Using the results from the solutions of prior homework for logistic regression (4), and KNN (3), compare the prediction correct classification rates of the four methods and recommend one or more methods. Explain your rationale. {-}
+
+
+<br>
+<div class="my-textbox">
+**Answer:** 
+
+* The correct classification rate, or accuracy, for each of the four models tested is below:
+
+  * 1. **KNN:** With k = 72, the model correctly predicted the behavior of the stock market in the following week about 60.4% of the instances.
+  
+  * 2. **Logistic Regression:** The model correctly predicted the behavior of the stock market in the following week about 55.13% of the instances.
+  
+  * 3. **LDA:** The model correctly predicted the behavior of the stock market in the following week about 54.5% of the instances in the test data.  
+  
+  * 4. **QDA:** The model correctly predicted the behavior of the stock market in the following week about 53.8% of the instances in the test data.  
+
+
+* **Recommendation:** Based on classification accuracy, KNN (with k = 72) performed the best, correctly predicting the market direction in 60.4% of cases. Therefore, KNN is the recommended model from among the four for this data set analysis.
+
+
+The rationale behind it:
+
+* KNN is a non-parametric method and can capture non-linear patterns in the data that linear models like LDA or logistic regression might miss.
+
+* LDA and QDA assume multivariate normality and equal or different covariances, which might not hold true in real for the data at hand, which can lead to worse performance.
+
+* Logistic Regression is more flexible than LDA but still assumes a linear decision boundary.
+
+</div> 
+<br>
+<br>
+
+
+
+# Crime in Boston
+
+##### (a) Use the Boston data set from the {ISLR2} package. Use `?ISLR2::Boston` to look at the definitions of the 13 variables. (Be careful as {ISLR2} and {MASS} each have a `Boston` data set but {MASS} has 14 variable.) {-}
+
+
+The goal is to fit classification models to predict whether a given suburb has a crime rate **at or above the median or below the median**. 
+
+
+* Variables: A data set containing housing values in 506 suburbs of Boston
+
+  * crim: per capita crime rate by town.
+
+  * zn: proportion of residential land zoned for lots over 25,000 sq.ft.
+
+  * indus: proportion of non-retail business acres per town.
+
+  * chas: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
+
+  * nox: nitrogen oxides concentration (parts per 10 million).
+
+  * rm: average number of rooms per dwelling.
+
+  * age: proportion of owner-occupied units built prior to 1940.
+
+  * dis: weighted mean of distances to five Boston employment centres.
+
+  * rad: index of accessibility to radial highways.
+
+  * tax: full-value property-tax rate per $10,000.
+
+  * ptratio: pupil-teacher ratio by town.
+
+  * lstat: lower status of the population (percent).
+
+  * medv: median value of owner-occupied homes in $1000s.
+
+<br>
+
+- Create the response variable using the variables in the Boston data set.
+
+
+<br>
+
+```{r}
+#| message: false
+library(tidyverse)
+library(ISLR2)
+
+Boston <- ISLR2::Boston
+# create new binary variable based on the median crime rate across the suburbs
+Boston$high_crime <- (Boston$crim >= median(Boston$crim, na.rm = 0)) * 1
+summary(Boston$crim)
+table(Boston$high_crime)
+glimpse(Boston)
+```
+
+<br>
+
+Consider pairs plots for high crimes with predictors of interest.  
+
+<br>
+
+```{r}
+#| label: pairs-plots
+#| message: false
+#| layout-ncol: 2
+# Look at plots of the pairs of variables
+GGally::ggpairs(Boston[, c("high_crime", "crim", "age", "dis")])
+GGally::ggpairs(Boston[, c("high_crime", "zn", "nox", "rad")])
+```
+
+<br>
+<div class="my-textbox">
+**Answer:** 
+
+* The correlation coefficients show that (all correlations are significant at 0.05 level):
+  * `high_crime` and `crim` have a coefficient of correlation r = 0.409*, which can be considered moderate positive: high crime areas tend to have higher crim values.
+  * `high_crime` and `age` have a coefficient of correlation r = 0.614*, which can be considered strong positive: high crime areas have older homes.
+  * `high_crime` and `dis` have a coefficient of correlation r = -0.616*, which can be considered strong negative: high crime areas tend to be closer to employment centers.
+  * `crim` and `age` have a coefficient of correlation r = 0.353*, which can be considered moderate positive: higher crime areas have older homes.
+  * `crim` and `dis` have a coefficient of correlation r = -0.380*, which can be considered moderate negative: higher crime areas are closer to employment centers.
+  * `age` and `dis`	have a coefficient of correlation r = -0.748*, which can be considered very strong negative: older homes tend to be closer to employment centers.
+  * `high_crime` and `zn` have a coefficient of correlation r = - 0.436***, which can be considered moderate negative: high crime areas have less zones for large residential lots.
+  * `high_crime` and `nox` have a coefficient of correlation r = 0.723***, which can be considered strong positive: high crime areas are associated with higher air pollution.
+  * `high_crime` and `rad` have a coefficient of correlation r = 0.620***, which can be considered strong positive: high crime areas are located closer to radial highways.
+  
+
+* Distributions plots:
+
+  * `high_crime`: Binary and evenly distributed.
+</div> 
+<br>
+
+
+<br>
+
+- Use a logistic regression with response `high_crime` and a full model *using all the variables other than `crim`* to identify the most significant predictor variables ($p$-value <= .1).
+
+```{r}
+logit_fit <- glm(high_crime ~ zn + indus + chas + nox + rm + age + dis + rad + tax + ptratio + lstat + medv, 
+                 family = binomial, 
+                 data = Boston)
+summary(logit_fit)
+```
+<br>
+
+
+<br>
+<div class="my-textbox">
+**Answer:** The predictors: `zn`, `nox`, `age`, `dis`, `rad`, `tax`, `ptratio`, `medv`, are statistically significant at 0.10 level. Therefore, those predictors will continue on for the next steps.
+</div> 
+<br>
+
+<br>
+
+
+- Fit a reduced model with only significant predictors and comment on the results.
+
+```{r}
+logit_fit_red <- glm(high_crime ~ zn + nox + age + dis + rad + tax + ptratio + medv, 
+                     family = binomial, 
+                     data = Boston)
+summary(logit_fit_red)
+```
+
+<br>
+<div class="my-textbox">
+**Answer:** In the reduced model, all the predictors are statistically significant at 0.05 level, meaning the model might help to explain high crime rate in the 506 suburbs of Boston.
+
+* Estimated Coefficients:
+
+* zn:	-0.086, meaning that higher residential zoning is associated with lower odds of high crime.
+* nox: +43.26, meaning that high nox is associated with higher odds of high crime.
+* age: +0.024, meaning that	older homes is associated with higher crime.
+* dis: +0.628, meaning that	greater distance from employment centers is associated with higher crime.
+* rad: +0.722, meaning that	closeness to radial highways is associated with high crime.
+* tax: -0.0073, meaning that higher property taxes are associated with lower crime.
+* ptratio: +0.285, meaning that	larger class size is associated with more crime.
+* medv: +0.103, meaning that higher median house value is associated with higher crime.
+
+</div> 
+<br>
+
+
+
+- Create training and testing data with 50% split using 123 as a random number seed so your work is reproducible. 
+
+
+Use the training data with the most significant predictor variables to build models using logistic regression, LDA, and QDA methods. Assess predictive performance using the correct classification rate with the testing data. 
+
+
+```{r}
+set.seed(123)
+n <-  nrow(Boston)
+Z <- sample(1:n, n/2)
+
+Boston_train <- Boston[Z,]
+Boston_test <- Boston[-Z,]
+```
+
+
+
+- Logistic Regression Model, Confusion Matrix, and Predictive Performance
+
+
+```{r}
+lr_fit_train <- glm(high_crime ~ zn + nox + age + dis + rad + tax + ptratio + medv, 
+                    family = binomial, 
+                    data = Boston_train)
+summary(lr_fit_train)
+
+lr_fit_probs_test <- predict(object = lr_fit_train, newdata = Boston_test, type = "response")
+summary(lr_fit_probs_test)
+
+YesPredict <- 1 * (lr_fit_probs_test > 0.5)
+table(YesPredict)
+
+table(Boston_test$high_crime, YesPredict) #confusion matrix.
+
+mean(Boston_test$high_crime == YesPredict)
+```
+
+
+<br>
+<div class="my-textbox">
+**Answer:** The accuracy of the predictions is 0.866 and can be considered quite high, so the model performs very well. Therefore, the model correctly classified about 86.6% of towns in the test data as either high-crime or low-crime areas.
+</div> 
+<br>
+
+
+- Use tuning to find the best threshold based on error rate.
+
+```{r}
+threshold <- seq(0, 1, 0.01)
+TPR <- FPR <- err.rate <- class.rate <- rep(0, length(threshold))
+
+for (i in seq_along(threshold)) {
+  Yhat <- (lr_fit_probs_test > i / 100) * 1
+  err.rate[i] <- mean(Yhat != Boston_test$high_crime)
+  class.rate[i] <- mean(Yhat == Boston_test$high_crime)  
+  TPR[i] <- sum(Yhat == 1 & Boston_test$high_crime == 1) / 
+    sum(Boston_test$high_crime == 1)
+  FPR[i] <- sum(Yhat == 1 & Boston_test$high_crime == 0) / 
+    sum(Boston_test$high_crime == 0)
+}
+
+performance_DF <- data.frame(threshold, err.rate, class.rate, TPR, FPR)
+performance_DF %>% 
+  slice_min(err.rate) -> performance_DF_min
+performance_DF_min
+
+YesPredict <- 1 * (lr_fit_probs_test > 0.60)
+table(Boston_test$high_crime, YesPredict) #confusion matrix.
+mean(Boston_test$high_crime == YesPredict)
+```
+
+
+<br>
+<div class="my-textbox">
+**Answer:** 
+
+The threshold that minimizes error rate is p = 0.59 or 0.60, as presented above. 
+
+Therefore, now considering p = 0.60, accuracy is even higher as 0.893, so performance is even better than before. The model correctly classified about 89.3% of towns in the test data as either high-crime or low-crime areas.
+</div> 
+<br>
+
+
+
+
+- LDA Model, Confusion Matrix, and Predictive Performance.
+
+```{r}
+lda_out_Bos_HC <- lda(high_crime ~ zn + nox + age + dis + rad + tax + ptratio + medv, 
+                      data = Boston_train)
+lda_out_Bos_HC
+
+lda_pred_Bos_HC <- predict(lda_out_Bos_HC , Boston_test)
+
+table(Boston_test$high_crime, lda_pred_Bos_HC$class) 
+
+mean(Boston_test$high_crime == lda_pred_Bos_HC$class) |> round(3)
+```
+
+<br>
+<div class="my-textbox">
+**Answer:** With the LDA model, the rate of correct classification is 0.858. Hence, the model correctly classified about 85.8% of towns in the test data as either high-crime or low-crime areas. This is the smallest model accuracy computed so far.
+</div> 
+<br>
+
+
+
+- QDA Model, Confusion Matrix, and Predictive Performance.
+
+```{r}
+qda_out_Bos_HC <- qda(high_crime ~ zn + nox + age + dis + rad + tax + ptratio + medv, 
+                      data = Boston_train)
+qda_out_Bos_HC
+
+qda_pred_Bos_HC <- predict(qda_out_Bos_HC , Boston_test)
+
+table(Boston_test$high_crime, qda_pred_Bos_HC$class) 
+
+mean(Boston_test$high_crime == qda_pred_Bos_HC$class) |> round(3)
+```
+
+
+<br>
+<div class="my-textbox">
+**Answer:** With the QDA model, the rate of correct classification is 0.885. Hence, the model correctly classified about 88.5% of towns in the test data as either high-crime or low-crime areas. This is the second best performing model accuracy found.
+</div> 
+<br>
+
+
+
+
+##### (b) Recap and summarize your findings. Rank the models (Logistic Regression, tuned Logistic Regression, LDA, QDA) in terms of the *correct* classification rate. {-}
+
+
+<br>
+<div class="my-textbox">
+**Answer:** 
+
+* Model ranking based on classification rate:
+
+  * 1) Tuned Logistic Regression model (threshold = 0.60): 0.893
+  
+  * 2) QDA model: 0.885
+  
+  * 3) Logistic regression model (assuming threshold = 0.50): 0.866
+  
+  * 4) LDA model: 0.858
+</div> 
+<br>
+
+
+
+
+
+
+##### (c) Now build LDA and QDA models with all the data and use cross-validation to evaluate predictive performance. Comment on the results compared to the training and test set results. {-}
+
+
+```{r}
+ldacv_out_Bos_HC <- lda(high_crime ~ zn + nox + age + dis + rad + tax + ptratio + medv, 
+                        data = Boston, 
+                        CV = TRUE)
+table(Boston$high_crime, ldacv_out_Bos_HC$class) #confusion matrix: shows actual vs. predicted values.
+mean(Boston$high_crime == ldacv_out_Bos_HC$class) |> round(3)
+```
+
+
+```{r}
+qdacv_out_Bos_HC <- qda(high_crime ~ zn + nox + age + dis + rad + tax + ptratio + medv, 
+                        data = Boston, 
+                        CV = TRUE)
+table(Boston$high_crime, qdacv_out_Bos_HC$class) #confusion matrix: shows actual vs. predicted values.
+mean(Boston$high_crime == qdacv_out_Bos_HC$class) |> round(3)
+```
+
+<br>
+<div class="my-textbox">
+**Answer:** 
+
+* The classification rates for both models using the cross-validation option is:
+
+  * LDA with cross-validation: 0.860
+  * QDA with cross-validation: 0.875
+  
+Both models performed well and provided similar results compared with before. However, the QDA results from when using the training and test sets performed better than the QDA results from Cross-validation.
+</div> 
+<br>
+
+
+
+
+##### (d) When you look at the data and its definitions, you may decide `rad` should be a factor, or remain a double. It turns out the models in (a) with `rad` as a double outperform the models with `rad` as a factor. The reduced model for Logistic Regression with `rad` as a double has seven predictors and the reduced model for logistic regression with `rad` as a factor only has three, without `rad`. Would you recommend the model where `rad` is converted to a factor or not, and why? {-}
+
+
+```{r}
+table(as.factor(Boston$rad))
+
+glm(high_crime ~ zn + nox + age + dis + as.factor(rad) + tax + ptratio + medv, 
+    family = binomial, 
+    data = Boston) |> summary()
+```
+
+
+<br>
+<div class="my-textbox">
+**Answer:** 
+
+* Recommendation: Keep `rad` as a double variable. Because empirical evidence shows better model performance with more significant predictors: better fit. Even though `rad` is technically an index, treating it as numeric retains its ordering, which seems to help the model. The numeric version is simpler, more powerful, and performs better.
+Even though `rad` looks like a candidate for a factor (since it's an index), in practice, treating it as numeric yields a better model in this case and the data is telling to keep it as a numeric predictor.
+
+</div> 
+<br>
+
+
+
+
+##### (e) Explore KNN  with the predictors from the reduced model to identify the best $k$ (range 1:50) and its correct classification rate. Recommend a final model and explain your rationale. {-}
+
+- Hint: You can create the training data by using  `names(lreg_fit$coefficients[-1])` to identify the predictor names from the reduced logistic regression model, e.g., my
+
+```{r}
+#| label: KNN
+#| message: false
+library(class)
+
+# get the names from the fitted logistic regression model data
+x_train <- Boston[, names(logit_fit_red$coefficients[-1])]
+x_test <- Boston[, names(logit_fit_red$coefficients[-1])]
+y_train <- Boston$high_crime
+y_test <- Boston$high_crime
+
+
+knn_prediction <- knn(train = x_train, test = x_test, cl = y_train, k = 3)
+table(y_test, knn_prediction)
+```
+
+```{r}
+mean(knn_prediction == y_test)
+mean(knn_prediction != y_test)
+```
+
+
+```{r}
+max_k <- 50
+class_rate <- vector(mode = "numeric", length = max_k) # <1.>
+
+for (K in 1 : max_k) {
+  knn_predict = knn(x_train, x_test, y_train, K) # <2.>
+  class_rate[[K]] = mean(y_test == knn_predict) # <3.>
+}
+
+class_rate |> round(3)
+max(class_rate)
+which.max(class_rate)
+```
+
+<br>
+<div class="my-textbox">
+**Answer:** 
+
+* As investigated above, K = 1 provides a classification rate of 100%. This results are really surprising and confusing since it seems very unlikely in real world applications. I could argue that the test set is identical or nearly identical to the training set or that there is very strong separation in the feature space between high_crime = 0 and high_crime = 1, considering that high_crime is a perfect balanced repose variable.
+
+</div> 
+<br>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

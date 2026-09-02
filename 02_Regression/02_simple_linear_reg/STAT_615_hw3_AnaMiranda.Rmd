@@ -1,0 +1,161 @@
+---
+title: "DATA 615 - Regression: Homework - 3"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(patchwork)
+```
+
+
+\newpage
+
+## Reading in the data set: {.unnumbered}
+
+```{r}
+cm <- read.table("./data/CH01PR20.txt", header = F)
+colnames(cm) <- c("time", "copiers")
+glimpse(cm)
+
+summary(cm)
+```
+
+
+## Estimating the regression function: {.unnumbered}
+
+```{r}
+cm_SLR <- lm(data = cm, time ~ copiers)
+summary(cm_SLR)
+```
+
+\bigskip
+
+**The estimated regression function is:**
+
+$$\widehat{time} = -0.5802 + 15.0352(copiers)$$
+
+\bigskip
+
+
+# Problem 2.14 (a, b) (p. 91) (10 pts).
+
+## a) Obtain a 90 percent confidence interval for the mean service time on calls in which six copiers are serviced. Interpret your confidence interval. {.unnumbered}
+
+```{r}
+predict(cm_SLR, newdata = data.frame(copiers = 6), se.fit = T, interval = "confidence", leve = 0.90)
+```
+
+From the output above we can see that the expected Y value for when the number of copiers is 6 is: $\hat{Y_h} = 89.6313$.
+
+The standard error for the fitted value is: $s\hat{\{Y_h}\} = 1.3964$.
+
+With $t_{critic}(0.95; 43) = 1.6811$ and solving the computation: $89.6313 +- 1.6811*(1.3964)$. The $90\%$ confidence interval for the expected Y value is: 
+
+$87.28387 <= E\hat{\{Y_h}\} <= 91.9788$.
+
+Therefore, I'm 95% confident that the true mean value of Y, when X = 6, falls between 87.29 and 91.98 based on this regression model and data.
+
+
+## b) Obtain a 90 percent prediction interval for the service time on the next call in which six copiers are serviced. Is your prediction interval wider than the corresponding confidence interval in part (a)? Should it be? {.unnumbered}
+
+```{r}
+predict(cm_SLR, newdata = data.frame(copiers = 6), se.fit = F, interval = "prediction", leve = 0.90)
+```
+The prediction interval is: $74.46433 <= E\hat{\{Y_h}\} <= 104.7983$. Yes, it's wider than the corresponding C.I. in part a, as presented above, and that's how it should be. That is because the standard error calculated for the prediction interval includes one more term for the variance of the model than the usual C.I. does. 
+
+
+# Review the example in Lab 1. R users see item 8 in RLab1_SLR.pdf. Practice drawing the “confidence interval band” and “prediction interval band” on the scatter plot with the regression line. Turn in a graph using Copier Maintenance data. (5 pts)
+
+```{r}
+
+plot(time ~ copiers, data = cm, ylim=c(1, 300), xlim=c(1, 20), pch=20)
+abline(cm_SLR$coef)
+
+set.seed(1)
+newx <- sample(1:20, size = 45, replace = TRUE)
+newx
+
+cm_CI <- predict(cm_SLR, newdata = data.frame(copiers = newx), interval="confidence", leve=0.95)
+#cm_CI
+cm_PI <- predict(cm_SLR, newdata = data.frame(copiers = newx), interval="prediction", leve=0.95)
+#cm_PI
+
+# lty=line types, col=colors for lines and points, lwd=line widths
+lines(newx, cm_CI[, 2], lty= 2, col= 2) #Red for CI
+lines(newx, cm_CI[, 3], lty= 2, col= 2) #Red for CI
+lines(newx, cm_PI[, 2], lty= 3, col= 3, lwd= 3) #Green for PI
+lines(newx, cm_PI[, 3], lty= 3, col= 3, lwd= 3) #Green for PI
+
+```
+
+
+
+# Problem 2.24 (b, c, d) (p. 93) (15 pts).
+
+## a) Set up the basic ANOVA table in the format of Table 2.2. Which elements of your table are additive?  {.unnumbered}
+
+```{r}
+anova(cm_SLR)
+```
+
+The Regression Sum of Squares and the Residual Sum of Squares are additives to form the Total Sum of Squares measure. The Mean Squares values are computed dividing the Sum of Squares values by their respective degree of freedom.
+
+
+## b) Conduct an F test to determine whether or not there is a linear association between time spent and number of copiers serviced; use alpha = .10. State the alternatives, decision rule, and conclusion. {.unnumbered}
+
+Considering the F test to determine if there is a linear association between the variables `time` and `copiers`, the hypothesis test for the slope $\beta_1$ is the following: 
+
+* $H_0: \beta_1 = 0$ vs $H_A: \beta_1 \neq 0$
+
+* The F test-statistic calculated from the regression model is $F* = MSR/MSE = 968.66$ and is provided by the ANOVA table above.
+
+```{r}
+fcrit <- qf(p = 0.10, df1 = 1, df2 = (45-2), lower.tail = FALSE)
+fcrit
+```
+
+With $alpha = 0.10$ and $n = 45$, the F critic from the F distribution table is $F(0.90; 1; 43) = 2.826$. The decision rule is:
+
+* If $F* >= 2.826$, conclude Ho
+
+* If $F* > 2.826$, conclude Ha
+
+Therefore, $H_A$ is concluded and $\beta_1 \neq 0$, meaning that there is a linear association between time spent in servicing copiers and number of copiers serviced. The $p-value(Pr(>F*)) = 2.2e-16$ and a lot smaller than 0.10.
+
+
+## c) By how much, relatively, is the total variation in number of minutes spent on a call reduced when the number of copiers serviced is introduced into the analysis? Is this a relatively small or large reduction? What is the name of this measure?  {.unnumbered}
+
+The total variation in number of minutes spent on call is relatively reduced by $95.75\%$ when the number of copiers serviced is introduced to the model.
+
+The name of the measure is `Coefficient of Determination`: **R-squared**. It can be calculated by $R^2 = SSR/SST = 0.9575$ or $95.75\%$. It's considered pretty large for this study, meaning that about $95.75\%$ of the variation in service time can be explained by the number of copiers serviced.
+
+
+## d) Calculate r and attach the appropriate sign. {.unnumbered}
+
+```{r}
+correlation = sqrt(0.9575)
+correlation
+```
+
+* The `Coefficient of Correlation` between the variables `time` and `copiers` is: $r = +0.9785$
+
+
+# Refer to the Copier Maintenance data. Learn to read basic output of regression analysis from another software. We will use SPSS output in the midterm exam.
+
+
+* The SPSS output for regression analysis is similar to the output generated from R, just with a bit more information such as the SSTO on the ANOVA table and a few more labels as well.
+
+

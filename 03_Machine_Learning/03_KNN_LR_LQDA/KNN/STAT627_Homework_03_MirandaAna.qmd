@@ -1,0 +1,258 @@
+---
+title: "Homework 5 - KNN"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    theme: cerulean
+    df_print: kable
+execute: 
+  warning: false
+---
+
+<style>
+.my-textbox {
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+</style>
+
+
+# Finding Gold! 
+
+* Solution on a separate PDF file attached.
+
+
+# KNN Prediction
+
+* Solution on a separate PDF file attached.
+
+
+# Stock Market Prediction
+
+We want to predict the behavior of the stock market in the following week. The `Weekly` data set in {ISLR2} contains 1,089 observations with the following 9 variables.
+
+-   `Year`: The year that the observation was recorded
+-   `Lag1`: Percentage return for previous week
+-   `Lag2`: Percentage return for 2 weeks previous
+-   `Lag3`: Percentage return for 3 weeks previous
+-   `Lag4`: Percentage return for 4 weeks previous
+-   `Lag5`: Percentage return for 5 weeks previous
+-   `Volume`: Volume of shares traded (average number of daily shares traded in billions)
+-   `Today`: Percentage return for this week
+-   `Direction`: A factor with levels `Down` and `Up` indicating whether the market had a positive or negative return on a given week
+
+<br>
+
+(a) Review some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns?
+
+
+```{r}
+#| include: true
+#| message: false
+library(tidyverse)
+library(ISLR2)
+library(class)
+
+# some possible options
+glimpse(Weekly)
+summary(Weekly)
+```
+
+
+```{r}
+#| message: false
+GGally::ggpairs(Weekly[,c(9, 1:8)])
+```
+
+```{r}
+Weekly |>
+  ggplot(aes(Direction, log(Volume))) +
+  geom_boxplot(notch = TRUE)
+```
+
+<br>
+
+<div class="my-textbox">
+**Findings:** Apart from `Volume` and `Year`, there are no evidences of strong patterns among the variables. `Year` and `Direction` seem to be evently distributed and with no presence of outliers. `Year` and `Volume` are positive and strongly corrrelated with r = 0.842. The lag variables appear to have several cases of outliers. The boxplots show that `Volume` seems to be normally distribued by `Direction` with direction "Down" being slightly skewed to the left.
+</div> 
+
+
+<br>
+
+(b) Split the data set into training and testing data and use the KNN method with $K = 7$ to predict `Direction` as the response based on the five lag variables plus `Volume` as predictors. Use split percentage of 75%. Why or why not is this a good split percentage? Use seed 123.
+
+```{r}
+set.seed(123)
+n = nrow(Weekly)
+n
+Z <- sample(n, (n/4)*3)
+length(Z)
+Auto_train <-  Weekly[Z, ]
+Auto_test <-  Weekly[-Z, ]
+
+x_train <- select(Auto_train, -Year, -Today, -Direction)
+
+x_test <- select(Auto_test, -Year, -Today, -Direction)
+
+y_train <- Auto_train$Direction #use the labels of the response mpg
+
+y_test <- Auto_test$Direction # exclude categorical vars
+```
+
+
+```{r}
+knn_prediction <- knn(train = x_train, test = x_test, cl = y_train, k = 7)
+table(knn_prediction)
+table(y_test)
+```
+
+<br>
+
+<div class="my-textbox">
+**Answer:** Yes, 75%/25% is a good split percentage, especially because the sample size is somewhat large in this case and a good balance between training and testing data. With 75% of the data for training data, the model has enough information to learn patterns and provide a more accurate prediction in testing.
+</div> 
+
+<br>
+
+(c) Compute the confusion matrix, showing a table with the cross-tabulation of the actual and predicted responses.
+
+```{r}
+table(y_test, knn_prediction)
+```
+
+<br>
+
+(d) Compute the *classification rate*, which is the overall fraction of **correct** predictions.
+
+```{r}
+mean(knn_prediction == y_test)
+mean(knn_prediction != y_test)
+```
+
+<br>
+
+
+<div class="my-textbox">
+**Answer:** The classification rate is 0.5165, meaning that the model correctly predicted the behavior of the stock market in the following week about 51.65% of the instances in the test data. 
+</div> 
+
+<br>
+
+(e) Tuning. Try values of $k$ from 1 to 100 and identify the one which minimizes the prediction *error* rate. Report the optimal $k$ and the associated **error rate**.
+
+
+```{r}
+max_k <- 100
+class_rate <- vector(mode = "numeric", length = max_k) # <1.>
+
+for (K in 1:max_k) {
+  knn_predict = knn(x_train, x_test, y_train, K) # <2.>
+  class_rate[[K]] = mean(y_test == knn_predict) # <3.> prop of correct predictions.
+}
+
+which.max(class_rate) # <4.> K for which class_rate is maximum.
+max(class_rate) # <5.> maximum classification rate.
+```
+
+<br>
+
+<div class="my-textbox">
+**Answer:** The K value that minimizes the prediction error rate is k = 72, with a classification rate = 0.604 and error rate of 0.396. This is actually much better than with k = 7 above, given the model correctly predicted the behavior of the stock market 60.4% of the instances.
+</div>
+
+<br>
+
+
+# The Curse of Dimensionality
+
+When the number of features $p$ is large, there tends to be a deterioration in the performance of KNN and other local approaches that perform prediction using only observations that are *near* the test observation. This phenomenon is known as the *curse of dimensionality* and it describes why non-parametric methods tend to perform poorly as $p$ (the number of dimensions in the model) gets "large".
+
+(a) Suppose we have a set of observations with a response variable $Y$ and one feature $X$, so $p=1$. Assume we know the true distribution of $X$ is Continuous Uniform(0,1), i.e., it is equally likely to occur anywhere in the range $[0, 1]$. This means the $p(X \text{ is in the range }[a, b] = \frac{b-a}{1-0}$ (see [Continuous Uniform Probability distribution](https://en.wikipedia.org/wiki/Continuous_uniform_distribution) for the density function) .
+
+-   Given a test observation $X_t$, we wish to predict the response $\hat{Y}_t$ using only observations that are **within 10%** of the possible range of $X_t$ which is $[0,1]$. For instance, to predict the response for a test observation $X_t = 0.6$, 10% of $[0,1] = 0.1$ so we will use observations in the range $.6 \pm (0.1/2) = .05$ or $[0.55, 0.65]$. For $X_t \leq 0.1$ we use the range $[0, 0.1]$ and for $X_t \geq 0.9$ we use $[0.9,1]$.
+
+*On average, what fraction of the available observations will we use to make the prediction?* In other words, if we have 100 observations, what percentage of them would we expect to be within 10% of $X_t = .6$.
+
+
+<div class="my-textbox">
+**Answer:** With 100 observations, on average, 10 observations will fall within the 10% range of $X_t = 0.6$.
+Since X ∼ Uniform(0,1), the probability of an observation falling into a given interval of length 0.1 is: P = length of interval = 0.1.
+</div>
+
+<br>
+
+
+(b) Now suppose we add another predictor variable $X_2$, so $p = 2$ dimensions. We assume $(X_1$ and $X_2)$ are both uniformly distributed on $[0, 1] × [0, 1]$ **and are independent**. That assumption simplifies their [joint probability distribution](https://en.wikipedia.org/wiki/Joint_probability_distribution) to a joint distribution for independent variables which is the product of their individual (marginal) probabilities, i.e., $p(A \text{ and } B) = p(A)\times p(B)$.
+
+-   We now wish to predict the response $\hat{Y}_t$ for a test observation $(X_{1t}, X_{2t})$ using only observations that are within 10% of the range of $X_1$ **and** within 10% of the range of $X_2$ closest to the test observation. For instance, to predict the response for a test observation $(X_{1t}, X_{2t}) = (0.6, 0.35)$, we will use observations in the range $[0.55, 0.65]$ for $X_{1}$ and in the range $[0.3, 0.4]$ for $X_{2}$.
+
+*On average, what fraction of the available observations are in the desired neighborhood we so we can them to make the prediction?*
+
+
+<div class="my-textbox">
+**Answer:** With 100 observations, on average, about 1 observations will fall within the 1% area of the square of side 0.1.
+Since the variables are independent, the joint probability that a point lies in both intervals is: P = 0.1 × 0.1 = 0.01. So, only 1% of the observations will fall within the designated area.
+</div>
+
+<br>  
+
+
+
+(c) Now we add 98 more predictor variables ($p = 100$ dimensions) and all of them are are continuous Uniform(0,1) and independent of all other predictor variables. We wish to predict a test observation's response using observations within the 10% of each feature's range that is closest to that test observation.
+
+*What fraction of the available observations will we use to make the prediction?*
+
+
+<div class="my-textbox">
+**Answer:** the expected proportion of the data that will fall within that 100 dimensional space is: $P = 0.1^{100} = 1×10^{-100}$, which is practically zero observations.
+</div>
+
+<br>
+
+
+(d) Using your answers to parts (a)-(c), argue that a drawback of KNN when $p$ is large is there are very few training observations "near" any given test observation.
+
+
+<div class="my-textbox">
+**Answer:** Essentially because as p increases, the volume of the desired area decreases exponentially. By definition, KNN depends on having lots of neighboors, but in high dimensions, fewer or almost none will be close to the test observation. Therefore, KNN performs poorly because it has too few neighbors to make accurate predictions.
+</div>
+
+<br>
+
+
+(e) We really want to use 10% of the data to make our prediction. We just saw we can't do it by limiting ourselves to 10% of the range for each predictor. 
+
+- We now ask, for $p$ predictors that are [i.i.d.](https://en.wikipedia.org/wiki/Independent_and_identically_distributed_random_variables) Uniform (0, 1)),
+ how big does the hypercube of $p$ dimensions have to be so on average its volume will contain 10% of the data. 
+- Given our assumptions, a volume that is 10% of the total possible space should contain 10% of the data on average. So the question is, what is the length of each side of the hypercube that we need to get to 10% of the volume.
+- Let's call the length of one side of our hypercube $s$.
+- Note: A hyper-cube is a generalization of a cube to an arbitrary number of dimensions $p$. When $p$ = 1, a hyper-cube is a line segment, when $p = 2$ it is a square, and when $p = 100$ it is a 100-dimensional hyper-cube. Since all sides $s$ are the same length in a hyper-cube, the "volume" of a hyper-cube with dimension $p$ is $s^p$. For $p=1$, the "volume" is the length of the line segment and for $p=2$ the "volume" is the area of the square.
+
+*Calculate the length of $s$ for $p$ = 1, 2, and 100 so the hyper-cube has a volume of 10%? Comment on your results.*
+
+
+<div class="my-textbox">
+
+**Answer:** 
+For hiper-cube of dimension p, the side length 's' can be determined by the formula: $s^p = 0.1$. Now solving for 's' we can find it's value. Therefore, $s = 0.1^{1/p}$.  Substituting the values for 'p', the values for 's' will be:
+
+* For p = 1, $s = (0.1)^{1/1} = 0.1$
+
+* For p = 2, $s = (0.1)^{1/2} = \sqrt{0.1} = 0.31623$
+
+* For p = 100, $s = (0.1)^{1/100} = 10^{-0.01} = 0.977$
+
+As presented, in 100-dimension hyper-cube, the neighborhood needs to cover 97.7% of the range to contain about 10% of the data. Therefore, in high-dimensional settings, we must include nearly the entire area/space in order to get enough data, defeating the point of using a local neighborhood method such as KNN.
+
+</div>
+
+
+

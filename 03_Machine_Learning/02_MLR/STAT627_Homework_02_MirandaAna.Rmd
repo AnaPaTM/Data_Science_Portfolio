@@ -1,0 +1,347 @@
+---
+title: "DATA 627 - Statistical Machine Learning, Fall 2025"
+subtitle: "Homework 2: Linear Regression"
+author: "Ana Paula Miranda"
+date: "`r Sys.Date()`"
+fontsize: 12pt
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 1
+    number_sections: yes
+    df_print: kable
+urlcolor: "blue"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(ggformula) # the package for geom_spline
+library(ISLR2)
+library(broom)
+```
+
+
+\newpage
+
+
+# Interpreting Least Squares Parameters (6 points)
+
+Suppose we have a data set with five predictors,
+
+- $X1 =$ GPA,
+- $X2 =$ IQ,
+- $X3 =$ Gender (0 for Male, 1 for Female),
+- $X4 =$ Interaction between GPA and IQ, and
+- $X5 =$ Interaction between GPA and Gender.
+
+The response variable is starting salary after graduation (in thousands of dollars).
+
+
+\bigskip
+
+
+Assume we use least squares to fit a model, and get
+
+- $\beta_0 = 60$, $\beta_1 = 20$, $\beta_2 = 0.07$,
+- $\beta_3 = 12$, $\beta_4 = 0.01$, $\beta_5 = -4$.
+
+
+### a) Write out the formula for the overall model and then two formulas: one for Males and one for Females and simplify both to combine all like terms. Use those to answer which of the following statements is most correct and why? {.unnumbered}
+
+i. For a fixed value of IQ and GPA, males earn more on average than females.
+ii. For a fixed value of IQ and GPA, females earn more on average than males.
+iii. For a fixed value of IQ and GPA, females earn more on average than males if the GPA is high enough.
+iv. For a fixed value of IQ and GPA, males earn more on average than females if the GPA is high enough.
+
+\bigskip
+
+The estimated regression function is:
+
+$$\widehat{salary} = 60 + 20(GPA) + 0.07(IQ) + 12(Gender) + 0.01(GPA*IQ) -4(GPA*Gender)$$
+
+\bigskip
+
+The formulas for separate predictions for males and Females are:
+
+\bigskip
+
+1) **Males** (Gender = 0):
+
+
+$$\widehat{salary}_{male} = 60 + 20(GPA) + 0.07(IQ) + 0.01(GPA*IQ)$$
+
+\bigskip
+
+2) **Female** (Gender = 1):
+
+
+$$\widehat{salary}_{female} = 72 + 16(GPA) + 0.07(IQ) + 0.01(GPA*IQ)$$
+
+\bigskip
+
+**Answer:** Statement **iv** is most correct. Hence, for a fixed IQ and GPA, males earn more on average than females if the GPA is high enough or, more specifically, if GPA is larger than 3.
+
+* If GPA = 3, the model allows for equal predicted salary.
+* If GPA < 3, females earn more.
+* If GPA > 3, males earn more.
+  
+  
+\bigskip
+
+
+### b) Predict the salary of a female with IQ of 120 and a GPA of 4.0. {.unnumbered}
+
+
+```{r}
+IQ = 120
+GPA = 4
+est_salary_fem = 72 + (16*GPA) + (0.07*IQ) + 0.01*(GPA*IQ)
+est_salary_fem
+est_salary_male = 60 + (20*GPA) + (0.07*IQ) + 0.01*(GPA*IQ)
+est_salary_male
+```
+
+\bigskip
+
+* **Answer:** The predicted salary is $149.20 thousand. For males, that predicted salary would be 153.20 thousand. This confirms what has been stated above: for a fixed IQ and GPA, males earn more on average than females when GPA is larger than 3.
+
+
+
+\bigskip
+
+
+### c) **True or False**: Since the coefficient for the GPA/IQ interaction term is very small, there is very little evidence of an interaction effect. Justify your answer. {.unnumbered}
+
+* **Answer:** False. It's impossible to judge the effect of an interaction just from the magnitude of the coefficient. It's necessary to check the statistical significance of the coefficient and consider the ranges of the predictors.
+
+
+
+\bigskip
+
+### d) 627 Only. {.unnumbered}
+
+Use the formula for a simple regression line, $y=\hat{\beta}_0+ \hat{\beta}_1 x$, to show that in the case of simple linear regression, the least squares line *always* passes through the point of the sample averages $(\bar{x},\bar{y})$.
+
+- Hint: To verify if a given point $x=\bar{x}$ and $y=\bar{y}$ is on a given line, plug in the coordinates of the point into the equation of the line and see if the resulting equation is true.
+
+
+**Answer:** 
+For the least square regression line: $y=\hat{\beta}_0+ \hat{\beta}_1 x$, the intercept $\hat{\beta}_0$ is calculated using the sample averages and the slope, $\hat{\beta}_1$. Therefore, $\hat{\beta}_0 = \bar{y} - \hat{\beta}_1\bar{x}$. Substituting it into the regression line equation we have:
+
+
+$$y=\hat{\beta}_0 + \hat{\beta}_1 x =  \bar{y} - \hat{\beta}_1\bar{x} + \hat{\beta}_1 x = \bar{y} + \hat{\beta}_1(-\bar{x} + x)$$
+
+Now, plugging in the point ($\bar{x}, \bar{y}$) value I want to predict: 
+
+
+$$y = \bar{y} + \hat{\beta}_1(-\bar{x} + \bar{x})$$
+
+$$y = \bar{y}$$
+
+Since with $x=\bar{x}$ yields the predicted value of $y = \bar{y}$, the point ($\bar{x}, \bar{y}$) must lie on the least squares regression line.
+
+
+
+\newpage
+
+# Training and Test Error Sums of Squares (4 Points)
+
+A set of data ($n = 100$ observations) has a single predictor and a quantitative response. I then fit a linear regression model to the data, to include a separate cubic regression, i.e.,
+
+$$Y = \beta_0 + \beta_1X + \beta_2X^2 + \beta_3X^3 + \epsilon.$$
+
+### a) Suppose the *true but unknown* relationship between $Y$ and $X$ is actually linear, i.e., $Y = \beta_0 + \beta_1X$. {.unnumbered}
+
+- Consider the **training** error sum of squares (SSErr) for the linear regression, and the **training** SSErr for the cubic regression. Would we expect one to be lower than the other, would we expect them to be the same, or is there not enough information to tell? Justify your answer.
+
+
+**Answer:** I would expect the training SSE for the cubic regression to be lower than or equal to the training SSE for the linear regression because the cubic model is more flexible and will produce smaller training error.
+
+\bigskip
+
+
+### b) Answer (a) using **test** SSE rather than training SSE. {.unnumbered}
+
+
+**Answer:** Since the real relationship of X and Y is linear, the test SSE would be lower for the linear model than for the cubic model, due to overfitting the data by the more flexible cubic model.
+
+\bigskip
+
+
+### c) Suppose the *true but unknown* relationship between $X$ and $Y$ is **not** linear, but we don't know how far it is from linear. Consider the **training** SSErr for the linear regression, and also the **training** SSErr for the cubic regression. Would we expect one to be lower than the other, would we expect them to be the same, or is there not enough information to tell? Justify your answer. {.unnumbered}
+
+
+  **Answer:** I would still expect the training SSE for the cubic regression to be lower than or equal to that of the linear regression because the cubic regression will have lower or equal training SSE than linear regression, regardless of the unknown true relationship.
+
+\bigskip
+
+
+### d) Answer (c) using **test** SSE rather than training SSErr. {.unnumbered}
+
+
+  **Answer:** In this case, would not necessary expect the cubic model to have lower SSE than the linear model on the test data because the test SSE can increase with model complexity if the model overfits.
+
+
+\newpage
+
+# Carseats Models (10 Points)
+
+Use the {ISLR2} package and the `Carseats` data set.
+
+- Look at the data, e.g., with `glimpse()` and `summary()` in R.
+
+```{r}
+data(Carseats)
+glimpse(Carseats)
+```
+
+```{r}
+summary(Carseats)
+```
+
+
+- Select(subset) the data to just the variables `Sales`, `Price`, `Urban`, and `US`,  and create a set of bivariate pairs plots using `GGally::ggpairs()`.
+
+
+- Interpret the plots for `Sales` with respect to the other variables.
+
+```{r}
+GGally::ggpairs(Carseats[c("Sales", "Price", "Urban", "US")])
+```
+
+\bigskip
+
+**Interpretation of Plots:**
+
+* `Sales` and `Price` are negatively linear correlated, suggesting that when sales are low, price is high and vice-versa.
+* `Sales` and `Urban` seem to be normally distributed for both levels of `Urban` and shows the presence of a few outliers.
+* `Sales` and `US` also seem to be normally distributed for both levels of `US` and shows the presence of a few outliers.
+
+
+\newpage
+
+### a) Fit a multiple regression model to predict `Sales` using predictors `Price`, `Urban`, and `US`. {.unnumbered}
+
+```{r}
+mlr_cs <- lm(Sales ~ Price + Urban + US , data = Carseats)
+mlr_cs
+```
+
+\bigskip
+
+### b) Use `summary()` and interpret each coefficient in the model with respect to the model. Consider the variable types and their units of measure! {.unnumbered}
+
+
+```{r}
+summary(mlr_cs)
+```
+\bigskip
+
+
+**Interpretation:**
+
+* Intercept: $\beta_0$ = 13.04: The expected sales are 13.04 thousands of units when Price = 0, the store is not in an urban area and not in the US.
+
+* $\beta_1$ = -0.054: Meaning that for every $1 increase in price, sales decrease by 0.054 units, holding all other variables constant.
+
+* $\beta_2$ = -0.022: Meaning that stores located in urban areas have 0.022 fewer sales on average than non urban stores, holding all other variables constant. (not statistically significant, though).
+
+* $\beta_3$ = 1.20: Meaning that US stores have 1.20 more units sold than stores outside the US, holding all other variables constant.
+
+\bigskip
+
+### c) Write out the model in equation form with the fitted (estimated) parameters. {.unnumbered}
+
+
+* The estimated regression function is:
+
+$$\widehat{Sales} = 13.043 - 0.054(Price) - 0.022(Urban=1) +  1.20(US=1)$$
+
+\bigskip
+
+### d) What is the Null hypothesis for the predictors and for which of the predictors can you reject the null hypothesis and why? {.unnumbered}
+
+The hypothesis test is:
+
+* $H_0: \beta_k = 0$ vs $H_A: \beta_k \neq 0$
+
+from the summary for the full model above: There is statistical evidence of an association for Price and US
+
+* For Prince, the p-value < 2e-16. Therefore, we reject Ho for this predictor.
+* For UrbanYes, the p-value = 0.936. Therefore, we fail to reject Ho for this predictor.
+* For USYes, the p-value = 4.86e-06. Therefore, we reject Ho for this predictor.
+
+\bigskip
+
+### e) On the basis of your response to the previous question, fit a reduced model with only the predictors for which there is evidence of an association with the response. {.unnumbered}
+
+
+```{r}
+mlr_cs_red <- lm(Sales ~ Price + US , data = Carseats)
+summary(mlr_cs_red)
+```
+
+\bigskip
+
+### f) Use an analysis of variance, e.g., `anova()`, to compare how well the models in (a) and (e) fit the data? What is the Null hypothesis? Interpret the results of the comparison. {.unnumbered}
+
+
+```{r}
+anova_out <- anova(mlr_cs_red, mlr_cs)
+anova_out
+```
+
+* Can `Urban` be dropped from the model?
+
+  * Hypothesis test would be: $H_0: \beta_2 = 0$ vs. $H_a: \beta_2 \neq 0$
+
+\bigskip
+
+**Findings:** With a p-value = 0.9357 larger than alpha = 0.05, I can strongly accept Ho, at 0.05 significance level, and drop `Urban` from the model when `Price` and `US` are in the model. Therefore, the reduced model is sufficient.
+
+
+\bigskip
+
+### g) Using the reduced model from (e), obtain 95% confidence intervals for the coefficient(s), e.g., using `confint()` or `broom::tidy()` in R. Use the meaning of a confidence interval to interpret the results (without using the word "confident"). {.unnumbered}
+
+
+```{r}
+confint(mlr_cs_red)
+```
+\bigskip
+
+**Interpretation:**
+
+* The interval for `Price` suggests that for every $1 increase in price, the decrease in Sales is between 0.044 and 0.064 thousand units.
+* The interval for `USYes` suggests that US stores have between 0.70 and 1.70 thousand units more in sales than non US stores.
+
+
+\newpage
+
+### h) Show multiple plots useful to examine the residuals, e.g., using `plot()` in R. Interpret specific plots to assess if there is evidence of extreme values (outliers) or high leverage observations in the model from (e)? {.unnumbered}
+
+
+```{r}
+par(mfrow=c(2, 2))
+plot(mlr_cs_red)
+```
+
+\bigskip
+
+
+**Findings:**
+
+* The residuals vs fitted plot shows a slight curve indicating a small non-linearity case and the presence of a few outliers.
+
+* The Q-Q plot shows slight deviation at the top, but not serious.
+
+* The scale-location plot looks evenly distributed and shows the presence of some outliers as well.
+
+* The residuals vs leverage plot indicates the presence of influential cases and that can also affect the overall model fit.

@@ -1,0 +1,121 @@
+---
+title: "DATA - 413/613 - Final Project: Project Plan"
+author: "Ana Paula Miranda"
+date: last-modified
+number-sections: true
+code-line-numbers: true
+toc: true
+format: 
+  html:
+    embed-resources: true
+    toc-depth: 2
+---
+
+
+# App Name and Author
+
+App name: Explore Determinants of Immigration at the County Level
+
+Author: Ana Miranda
+
+
+# Topic and Data
+
+## Context of the Problem
+
+Migrating or moving from one county to another, or from a different state or even a different country is a major decision that impacts the lives of individuals and families, as well as the origin and destination locations. This study will make available in an easy to use format the data on migration into U.S counties and the relationship with county characteristics, such as median income, college graduation rate, and the poverty rate.
+
+The Geographic mobility data is made available yearly by the American Community Survey from the United States Census Bureau.  
+
+The objective of the Shiny App is to give the user the ability to browse US mobility data by county and by year. The user will be able to access county level information such as the number of people who migrated into the county within the year and demographic characteristics of the county, as well as perform basic statistical analysis to explore what could be driving migration patterns at the county level.
+
+
+
+# Literature Review and Takeaways
+
+Three publications will be considered to support this analysis of understanding migration patterns:
+
+1) The publication ***Migration in the United States: 2006 to 2019*** by the ACS Reports discusses the data provided by ACS and the observed migration pattern in the US from 2006 to 2019. The data indicates that the migration rate within the United States is declining over time. (<https://www.census.gov/content/dam/Census/library/publications/2023/acs/acs-53.pdf>)
+
+2) The literature review: ***Drivers of Migration. Why Do People Leave Their Homes? Is There an Easy Answer? A Structured Overview of Migratory Determinants*** - Analyzes the reasons that are behind the force that cause people to migrate to different areas at personal and social levels. (<https://www.idos-research.de/uploads/media/DP_9.2019.pdf>)
+
+3) The paper ***The Frequently Requested Statistics on Immigrants and Immigration in the United States*** - provides a qualitative and a quantitative analysis and investigation of immigrants in the United States. (<https://www.migrationpolicy.org/sites/default/files/publications/FRS-PRINT-2024-FINAL.pdf>)
+
+
+
+# Data Sources
+
+The data sources for this analysis is the **American Community Survey 1-year Estimates** for the years of 2020, 2021 and 2022.  
+The data was collected through the *Census Bureau* metadata extractor: <https://data.census.gov/table>
+
+For each data file for each year, the number of observation is **3,142** and the number of variables is **562**. Therefore, I'll be manipulating three data files considered for the study: 2020, 2021 and 2022.
+
+
+
+# Use Case
+
+## Description
+
+My Shiny App can be used by someone that is interested in accessing the number of migrants into any specific U.S. county for the years of 2020, 2021 and 2022. 
+
+The actor could be someone that is writing a paper about residential mobility in the government, or a scholar trying to understand better the migration pattern. It would also be a valuable tool for students who want to explore the available data. The easy interaction provided by the App makes exploring the data a simple task, without the need to download the data and write code since the App will use simple selection menus.
+
+## Actor Questions of Interest
+
+* How many people migrated into a specific county (perhaps the Actor's county of residency) within the past year?
+
+* How many people migrated into a specific county within the past 3 years?
+
+* What is the relationship between the considered characteristics and migration into a given county?
+
+* How does migration into two different counties compare?
+
+## Anticipated Workflow For the Actor
+
+The App will have two separate tabs: one for descriptive analysis and another for statistical analysis. The actor will navigate through one of the tabs. For the descriptive analysis tab, the actor will select a county (or two for comparison) of interest from a drop down menu, a year of interest, a characteristic variable of interest and access a bar chart of the county(is) selected. For the statistical analysis tab, the actor will select the county of interest, a year and the characteristic variable of interest for modelling.
+
+
+
+# Ethical Review
+
+For this work, I'll make available the database and data sources used in order to ensure the transparency of the data with clear instructions of reproducibility. The database is free and anyone can have access to it. The database used does not contain any sensitive information. I will run the analysis in a fair and respectful way to ensure that no bias of any kind would effect the results. All the programs and codes used will be publicly available as well.
+
+
+
+# App Concept
+
+## General Layout
+The App will have three separate tabs: one for general instructions about usage, one for descriptive analysis and another for the statistical analysis. 
+
+## Planned Options For User Data Selection and Manipulation
+The user will make the selection of variables using drop down menus and "check boxes" to choose the county name, year, and exploratory variables for selected data manipulations and output.
+
+## Planned Options For User Exploratory Numerical/Graphical Analysis
+Everything will be "point and click" from either a drop down menu or box selection. There will be a graphical analysis that best describes the selected variables with basic descriptive statistics.
+
+## Planned Options For User Statistical Models and Tests
+Based on the user selection of variables, there will be options for simple and multiple linear regression analysis. A graph will be presented with the regression line plotted and the regression analysis summary table will be printed on the page.
+
+
+
+# Collaboration
+
+I'll be working by myself for this project.
+
+
+
+# Dates and Milestones
+
+November 4th: Gathering of Data
+
+November 7th: Delivery of Project Plan
+
+November 14th: Peer Review and Data Preparation
+
+November 21th: Progress Report and Data Preparation
+
+November 28th: Developing of Shiny App
+
+December 5th: Producing the Vignette
+
+December 12th: Oral presentation

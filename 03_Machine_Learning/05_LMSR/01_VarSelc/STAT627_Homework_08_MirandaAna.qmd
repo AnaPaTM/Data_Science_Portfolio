@@ -1,0 +1,555 @@
+---
+title: "Homework 8: Variable Selection"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    theme: pulse
+    df_print: kable
+execute: 
+  warning: false
+---
+
+
+<style>
+.my-textbox {
+  background-color: #f5ebeb;
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+</style>
+
+<br>
+
+
+# Multicollinearity
+
+\(a\) Perform the following commands in R to generate 100 sets of data for variables $x_1$ and $x_2$ so they are correlated:
+
+```{r}
+#| echo: fenced
+#| label: create-data
+#| include: true
+#| eval: true
+set.seed(123)
+n <- 100
+x1 <- runif(n)
+x2 <- 0.5 * x1 + rnorm(n) / 10
+y <- 2 + 3 * x1 + 0.2 * x2 + rnorm(n)
+```
+
+
+The last line corresponds to creating a linear model in which $y$ is a function of $x_1$ and $x_2$.
+
+- What are the *true* regression coefficients? 
+- Write out the *true* linear model as $y$ as a function of $\bf{x}$.
+
+
+
+**The equation is:**
+
+$$ y = 2 + 3X_1 + 0.2X_2 + \epsilon$$
+Where $\epsilon \approx N(0, 1)$ - the random error.
+
+<br>
+
+\(b\) Given we know the true relationship,... 
+
+- Use the formula for the variance of a Continuous Uniform Random Variable, $\text{Var}(x_1) = \frac{1}{12}(b-a)^2$, to calculate the *true* variance of $x_1$ as a number.
+
+
+```{r}
+var_x1 <- (1 / 12) * (1 - 0)^2
+var_x1
+```
+
+<br>
+
+- Since $x_2$ is the sum of two random variables of known variances, calculate its *true* variance as a number.
+
+```{r}
+Var_Z <- 1
+var_x2 <- ((0.5)^2) * var_x1 + ((1/10)^2) * Var_Z
+var_x2
+```
+
+
+<br>
+
+- Use the definition of Covariance to calculate the *true* covariance of $x_1$ and $x_2$ as a number.
+
+```{r}
+Cov_x1_x2 <- 0.5 * var_x1
+Cov_x1_x2
+```
+
+<br>
+
+- Use the formula for Correlation, $\text{Corr}(x_1,x_2) =\frac{\text{Cov}(x_1,x_2)}{\text{std}(x_1)\text{std}(x_2)}$ to calculate the *true* correlation between $x_1$ and $x_2$ as a number.
+
+```{r}
+corr_x1_x2 <- Cov_x1_x2 / (sqrt(var_x1) * sqrt(var_x2))
+corr_x1_x2
+```
+
+<br>
+
+- Use the R function `corr()` to calculate the *sample* correlation between $x_1$ and $x_2$?
+
+```{r}
+cor(x1, x2)
+```
+
+<br>
+
+- Create a scatter plot displaying the relationship between $x_1$ and $x_2$.
+
+```{r}
+plot(x1, x2)
+```
+
+
+- Comment on the true versus sample correlation coefficients and the scatter plot.
+
+
+<br>
+<div class="my-textbox">
+
+* True correlation is 0.822, which suggests a strong positive linear relationship between x1 and x2, as expected.
+
+* The sample correlation is 0.828, which is very close to the true value, it agrees with the model.
+
+* The scatter plot shows a clear and strong positive linear trend. The data points are somewhat clustered around an invisible upward-sloping line which reflects a strong correlation.
+
+</div> 
+<br>
+
+
+
+\(c\) Using this data, fit a least squares regression to predict `y` using `x1` and `x2`. 
+
+- Interpret the results. 
+
+```{r}
+library(tidyverse)
+df <- data.frame(x1, x2, y)
+glimpse(df)
+
+
+mlr_out <- lm(y ~ x1 + x2, df)
+summary(mlr_out)
+```
+
+
+<br>
+
+- What is the model equation with $\hat{\beta}_0, \hat{\beta1},$ and $\hat{\beta}_2$? 
+
+
+* The estimated regression function is:
+
+$$\hat{y} = 2.0698 + 3.3066(x_1) - 0.6510(x_2) $$
+
+
+
+
+
+- Compare the true $\beta_0, \beta_1,$ and $\beta_2$ and estimated parameters for the model.
+
+
+<br>
+<div class="my-textbox">
+
+* The estimated $\beta_0$ and $\beta_1$ are very similar to the true parameters. However, $\beta_2$ is larger and negative compared with the true value. Small deviations are expected due to random noise and multicolinearity from x1 and x2.
+
+  * $\beta_0$: 2.0698 vs. 2
+
+  * $\beta_1$: 3.3066 vs. 3
+
+  * $\beta_2$: 0.2 vs. -0.65.
+
+</div> 
+<br>
+
+
+
+- Comment on the standard errors of the estimated parameters.
+
+<br>
+<div class="my-textbox">
+
+* The estimated standard error for x1 is 0.5843 versus 0.2886751 for true value. For x2 it is 0.9798 versus 0.1755942 for true value. The estimated coefficients have larger standard errors.
+</div> 
+<br>
+
+
+
+- Is there sufficient evidence to reject the null hypothesis $H0: \beta_1 = 0$? 
+
+<br>
+<div class="my-textbox">
+
+For x1, the p-value is 1.54e-07, which is much smaller than any considered significance level (0.05, 0.01, 0.001). This means the probability of observing such a strong effect if the true coefficient were 0 is extremely low.
+
+Yes, there is strong evidence to reject, the null hypothesis. Therefore, x1 has a statistically significant effect on y, even after controlling for x2.
+
+</div> 
+<br>
+
+
+
+- How about the null hypothesis $H0: \beta_2 = 0$?
+
+
+<br>
+<div class="my-textbox">
+
+For x2, p = 0.63 and is much larger than 0.05 (or 0.01). This means the observed effect of x2 is not statistically significant for the model.
+
+
+Therefore, there is not enough evidence to reject the null hypothesis. In other words, x2 does not appear to be a statistically significant predictor of y once x1 is already in the model.
+
+</div> 
+<br>
+
+
+
+
+\(d\) Now fit a reduced model using least squares regression to predict `y` using only `x1`. Comment on your results, especially the standard error for the coefficient estimate. Can you reject the null hypothesis $H0: \beta_1 = 0$?
+
+
+```{r}
+mlr_out_red <- lm(y ~ x1, df)
+summary(mlr_out_red)
+```
+<br>
+<div class="my-textbox">
+
+Now, for x1 the p-value is 1.5e-14, which is highly statistically significant at any level (0.05, 0.01, 0.001). There is strong evidence to reject the null hypothesis, $H0: \beta_1 = 0$. Therefore, x1 has a statistically significant effect on y.
+
+The standard error is 0.3306 and it decreased compared to when x2 was in the model. Now it's very close to the true standard deviation for x1.
+
+</div> 
+<br>
+
+
+
+\(e\) Now fit a least squares regression to predict `y` using only `x2`. Comment on your results, especially the standard error for the coefficient estimate. Can you reject the null hypothesis $H0: \beta_2 = 0$?
+
+
+```{r}
+mlr_out_red2 <- lm(y ~ x2, df)
+summary(mlr_out_red2)
+```
+
+
+<br>
+<div class="my-textbox">
+
+Now, for x2 the p-value is 1.79e-08, which is highly statistically significant at any level (0.05, 0.01, 0.001). There is strong evidence to reject the null hypothesis, $H0: \beta_2 = 0$. Therefore, x2 has a statistically significant effect on y.
+
+The standard error is 0.6380 and it decreased compared to when x1 was in the model. It's still larger than the true standard deviation for x2.
+
+</div> 
+<br>
+
+
+\(f\) Do the results obtained in (c) - (e) contradict each other? Explain your answer.
+
+
+<br>
+<div class="my-textbox">
+
+The results may seem contradictory at first, but they actually reveal the effect of multicollinearity in regression analysis.
+
+* x2 looks strong on its own because it is taking signals from  x1.
+
+* x2 is weak when x1 is present, because x1 already explains most of what x2 could explain.
+
+</div> 
+<br>
+
+
+\(g\) Now suppose we obtain one additional observation, which was unfortunately mismeasured. Use the following R code.
+
+
+Re-fit the linear models from (c) to (e) using this new data. What effect does this new observation have on each of the models? How do the slopes from all the considered models change given the newly added data point?
+
+```{r}
+x1p <- c(x1, 0.1)
+x2p <- c(x2, 0.8)
+yp <- c(y, 6)
+```
+
+
+```{r}
+df2 <- data.frame(x1p, x2p, yp)
+
+mlr_out_p <- lm(yp ~ x1p + x2p, df2)
+summary(mlr_out_p)
+lm(yp ~ x1p, df2)
+lm(yp ~ x2p, df2)
+```
+
+
+<br>
+
+Comparing the reduced models.
+
+
+\(h\) Examine standard errors of estimated $\beta$s in (c), (d), and (e)? Which models produce more stable estimates with smaller confidence intervals, and therefore more reliable estimates of the parameters?
+
+```{r}
+confint(mlr_out)
+confint(mlr_out_red)
+confint(mlr_out_red2)
+```
+
+
+
+<br>
+<div class="my-textbox">
+
+- Model in (c): y ~ x1 + x2 - has higher standard errors due to multicollinearity between x1 and x2, making its coefficient estimates less precise.
+
+- Model in (d): y ~ x1 - gives the most stable and reliable estimate: smallest standard error and narrowest confidence interval for x1.
+
+- Model (e): (y ~ x2) - gives the least stable estimate: x2 looks important alone, but the estimate has high SE.
+
+
+In conclusion, for better interpretability and stable parameter estimates, model in (d) is the most reliable in this case.
+
+</div> 
+<br>
+
+
+\(i\) Compute both VIF for the full model by hand using the results from question (b) and then using full model compared to the reduced models with R. Relate them to your answer to question (h).
+
+
+```{r}
+VIF_true <- 1 / (1 - (0.823406)^2)
+VIF_true
+```
+
+```{r}
+library(car)
+vif(mlr_out)
+```
+<br>
+<div class="my-textbox">
+
+The full model shows variance inflation of approximately 3x for both x1 and x2, which is due to the strong correlation between x1 and x2, making the coefficient estimates less reliable.
+
+</div> 
+<br>
+
+
+
+
+\(j\) The two variance inflation factors in the previous question are close to each other and `car::vif()` provides the same value. Would this always be the case? Generalize to any linear regression model with $p = 2$ independent variables, either showing or disproving that $\text{VIF}_1 = \text{VIF}_2$.
+
+
+<br>
+<div class="my-textbox">
+
+* Yes, in any multiple regression model with exactly two independent variables (p = 2) we would get that: $\text{VIF}_1 = \text{VIF}_2$.
+
+* This is always true because the $R^2$ values for regressing x1 ~ x2 is the same as when regressing x2 ~ x1. 
+
+</div> 
+<br>
+
+
+\(k\) Can your conclusion be extended to $p = 3$? Explain.
+
+
+<br>
+<div class="my-textbox">
+
+* However, for models with more than two predictors (p > 2), VIFs are not expected to be equal, because each predictor is regressed on all the others and multicollinearity structure varies by each one of the predictors.
+
+</div> 
+<br>
+
+
+
+
+# College Applications
+
+Predict the number of applications received based on the other variables in the College data set in {ISLR2}.
+
+-   Use `set.seed(123)` where appropriate and 50% split where appropriate.
+
+\(a\) Find the best least squares regression model, using adjusted R2, BIC, and Cp criteria, as well as the stepwise variable selection. Choose a model as your best model and justify your choice.
+
+```{r}
+#| message: false
+#| warning: false
+library(ISLR2)
+library(leaps)
+library(tidyverse)
+data(College)
+glimpse(College)
+rownames(College) <- NULL
+```
+
+
+```{r}
+n <- nrow(College)
+set.seed(123)
+Z <- sample(1:n, n/2)
+train <- College[Z, ]
+test <- College[-Z, ]
+```
+
+
+```{r}
+mlr_college_full <- regsubsets(Apps ~ ., data = train, nvmax = 17)
+mlr_college_summary <- summary(mlr_college_full)
+names(mlr_college_summary)
+```
+<br>
+
+* Best Model based on adjusted R2:
+
+```{r}
+which.max(mlr_college_summary$adjr2)
+mlr_college_summary$which[11,][-1] # drop the intercept term
+```
+
+```{r}
+lm_adjr2 <- lm(Apps ~ Private + Accept + Top10perc + Top25perc + Outstate + 
+               Room.Board + Personal + PhD + perc.alumni + Expend + Grad.Rate, 
+               data = train)
+summary(lm_adjr2)
+pred_best11 <- predict(lm_adjr2, newdata = test)
+mean((test$Apps - pred_best11)^2)
+```
+
+
+<br>
+
+* Best Model based on BIC:
+
+```{r}
+round(mlr_college_summary$bic,0)
+which.max(mlr_college_summary$bic) # The worst by BIC
+which.min(mlr_college_summary$bic) # The best by BIC
+```
+```{r}
+mlr_college_summary$which[6,][mlr_college_summary$which[6,] == TRUE][-1]
+```
+
+```{r}
+lm_bic <- lm(Apps ~ Private + Accept + Top10perc + Room.Board + Terminal + Expend, 
+             data = train)
+summary(lm_bic)
+
+pred_best_bic <- predict(lm_bic, newdata = test)
+
+mean((test$Apps - pred_best_bic)^2)
+```
+
+
+<br>
+
+* Best Model based on CP:
+
+```{r}
+round(mlr_college_summary$cp, 2)
+which.max(abs(mlr_college_summary$cp - 1:17)) # The worst by Cp - underfit so high bias.
+which.min(abs(mlr_college_summary$cp - 1:17)) # The best by Cp
+```
+```{r}
+names(mlr_college_summary$which[16,][mlr_college_summary$which[16,] == TRUE])[-1]
+```
+
+<br>
+
+```{r}
+lm_cp <- lm(Apps ~ Private + Accept + Enroll + Top10perc + Top25perc + F.Undergrad +
+              Outstate + Room.Board + Books + Personal + PhD + Terminal + S.F.Ratio + 
+              perc.alumni + Expend + Grad.Rate, 
+               data = train)
+summary(lm_cp)
+
+pred_best_cp <- predict(lm_cp, newdata = test)
+
+mean((test$Apps - pred_best_cp)^2)
+```
+
+
+<br>
+
+* Best Model based on Stepwise Forward Selection:
+
+```{r}
+reg_full <- lm(Apps ~ ., data = train)
+reg_null <- lm(Apps ~ 1, data = train)
+```
+
+
+```{r}
+step_outf <- step(reg_null, 
+                 scope = list(lower = reg_null, upper = reg_full),
+                 method = "forward",
+                 trace = 0)
+summary(step_outf)
+
+pred_step_outf <- predict(step_outf, newdata = test)
+
+mean((test$Apps - pred_step_outf)^2)
+```
+
+<br>
+
+* Best Model based on Stepwise Backward Selection:
+
+
+```{r}
+step_outb <- step(reg_null, 
+                 scope = list(lower = reg_null, upper = reg_full),
+                 method = "backward",
+                 trace = 0)
+summary(step_outb)
+
+pred_step_outb <- predict(step_outb, newdata = test)
+
+mean((test$Apps - pred_step_outb)^2)
+```
+
+
+<br>
+
+\(b\) Evaluate prediction accuracy of your selected model, estimating the prediction mean-squared-error by some cross-validation method.
+
+**Save your results**, because we'll soon compare them against ridge regression, LASSO, PCR, and PLS.
+
+
+<br>
+<div class="my-textbox">
+
+The estimated prediction MSE for each of the methods investigated above are:
+
+* R-Squared method, based on 11 predictors: 1384997
+
+* BIC method, based on 6 predictors: 1410582
+
+* Cp method, based on 16 predictors: 1373113
+
+* Stepwise Forward Selection, 9 predictors selected: 1379139
+
+* Stepwise Backward Selection, 9 predictors selected: 1379139
+
+
+Prediction performance based on the *test data set* was best for the Cp method and would be my final selected model. 
+
+
+</div> 
+<br>

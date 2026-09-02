@@ -1,0 +1,185 @@
+---
+title: "DATA 615 - Regression: Homework - 12"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+library(tidyverse)
+library(ggthemes)
+library(leaps)
+library(car) # vif() function
+library(lmtest)
+library(MASS) # lm.ridge() function
+library(knitr)
+```
+
+
+\newpage
+
+# Problem 14.13 (p. 627. 15 pts)
+
+* In part (a), please find examples of "fitted response function" from textbook Equations (14.28), (14.30), (14.35) on p. 565, 566, 570, respectively.
+
+* In part (c), plug the x-values (x1 = 50, x2 = 3) into the fitted response function in part (a). Then you can find the estimated probability.
+
+
+\bigskip
+
+Car purchase. A marketing research firm was engaged by an automobile manufacturer to conduct a pilot study to examine the feasibility of using logistic regression for ascertaining the likelihood that a family will purchase a new car during the next year. A random sample of 33 suburban families was selected. Data on annual family income (X1, in thousand dollars) and the current age of the oldest family automobile (X2, in years) were obtained. A follow up interview conducted 12 months later was used to determine whether the family actually purchased a new car (Y = 1) or did not purchase a new car (Y = 0) during the year.
+
+\bigskip
+
+Multiple logistic regression model (14.41) with two predictor variables in first-order terms is assumed to be appropriate.
+
+\bigskip
+
+```{r}
+cp <- read.table("./data/CH14PR13.txt", header = F)
+colnames(cp) <- c("Y_new_car", "X1_fam_income", "X2_auto_age")
+glimpse(cp)
+```
+\bigskip
+
+```{r}
+summary(cp)
+```
+
+
+\newpage
+
+## a. Find the maximum likelihood estimates of Beta_0, Beta_1, and Beta_2. State the fitted response function. {-}
+
+```{r}
+cp_logit <- glm(Y_new_car ~ X1_fam_income + X2_auto_age, family = binomial(link = logit), data = cp)
+summary(cp_logit)
+```
+
+\bigskip
+
+**The maximum likelihood estimates for the coefficients are:**
+
+  * $\hat\beta_0 = -4.73931$
+  * $\hat\beta_1 = 0.06773$
+  * $\hat\beta_2 = 0.59863$
+
+
+\bigskip
+
+**The fitted response function is:**
+
+$$\hat\pi = \frac{exp(- 4.73931 + 0.06773(income) + 0.59863(age))}{1 + exp(- 4.73931 + 0.06773(income) + 0.59863(age))}$$
+
+\newpage
+
+## b. Obtain exp(b1) and exp(b2) and interpret these numbers. {-}
+
+```{r}
+exp(cp_logit$coefficients) # Odds Ratio
+```
+\bigskip
+
+* $exp(\hat\beta_1) = 1.07$, meaning that, after controlling for Age of the car, for every 1000 increase in family income, the odds ratio of buying a new car is 1.07.
+
+* $exp(\hat\beta_1) = 1.82$, meaning that, after controlling for family income in thousands of dollars, for each year increase in current age of the car, the odds ratio of buying a new car is 1.82.
+
+
+\bigskip
+\bigskip
+
+
+## c. What is the estimated probability that a family with annual income of $50 thousand and an oldest car of 3 years will purchase a new car next year? {-}
+
+```{r}
+predict(cp_logit, 
+        newdata = data.frame(X1_fam_income = 50,
+                             X2_auto_age = 3), 
+        type = "response")
+```
+\bigskip
+
+
+* The estimated probability that a family, with annual income of 50 thousand dollars and an oldest car of 3 years, will by a car in the next year is 0.609.
+
+
+\newpage
+
+
+# Problem 14.19 (a, b) (p. 629, 10 pts + 10 extra)
+
+* In part (a), use Bonferroni adjustment for the joint confidence interval.
+
+* In part (b), the "Wald test" is to use the Standard Normal (Z) distribution for the test.
+
+* You can work on part (c) and (d) for extra credit. (extra 10 pts)
+
+
+\bigskip
+
+Refer to Car purchase Problem 14.13. Assume that the fitted model is appropriate and that large-sample inferences are applicable.
+
+\bigskip
+
+## a. Obtain joint confidence intervals for the family income odds ratio exp(20Beta_1) for families whose incomes differ by 20 thousand dollars and for the age of the oldest family automobile odds ratio exp(2Beta_2) for families whose oldest automobiles differ in age by 2 years, with family confidence coefficient of approximately 0.90. Interpret your intervals. {-}
+
+\bigskip
+
+```{r}
+g <- 2
+fam_alpha <- 0.10
+ci_beta <- confint(cp_logit, level = 1 - (fam_alpha / g))
+exp(20 * ci_beta[2, ]) # 95% CI for exp(20/B1)
+exp(2 * ci_beta[3, ]) # 95% CI for exp(2/B2)
+```
+\bigskip
+\bigskip
+
+
+* The family Confidence Interval for the odds ratios $\exp(20\beta_1)$ and $\exp(2\beta_2)$ are: (1.477058, 13.950959) and (0.7832232, 18.0629946), respectively, at 90% confidence level.
+
+\newpage
+
+## b. Use the Wald test to determine whether X2, age of oldest family automobile, can be dropped from the regression model; use alpha = 0.05. State the alternatives, decision rule, and conclusion. What is the approximate P-value of the test? {-}
+
+```{r}
+summary(cp_logit)
+```
+\bigskip
+\bigskip
+
+* Hypothesis:
+
+  * $H_0: \beta_2 = 0$, meaning that $X_2$ can be dropped from the model.
+  
+  * $H_a: \beta_2 \neq 0$, meaning that $X_2$ should be in the model.
+
+
+* The decision rule:
+
+  * If p-value > alpha or |z-statistic| < z-critic: do not reject $H_0$.
+  * If p-value < alpha or |z-statistic| > z-critic: reject $H_0$.
+  
+  
+\bigskip
+
+* The z-statistic (or the Wald test statistic), is computed in the regression output provided above. For X2, the z-statistic = 1.535 and p-value = 0.1245. For alpha = 0.05, the z-critic = 1.96. Therefore, since the z-statistic = 1.532 is smaller than 1.96, with a p-value = 0.1245 larger than $\alpha = 0.05$, we do not reject $H_0$. Therefore, there is sufficient evidence that X2 can be dropped from the model, at 95% confidence level.
+  
+
+\bigskip
+\bigskip
+
+
+\begin{center}
+This is the end of Homework 12.
+\end{center}
+

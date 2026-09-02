@@ -1,0 +1,145 @@
+---
+title: "DATA 615 - Regression: Homework - 7"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(patchwork)
+library(corrplot)
+```
+
+
+\newpage
+
+
+# Read textbook p.260-262 for the sequential decomposition of SSR. An example is given in the solution for HW 6, Problem 7.5.(a). Also read Ch.7.4 (p.268 – 271) for coefficient of partial determination, which is another application of the extra sum of squares.
+
+
+\checkmark  Done.
+
+\bigskip
+\bigskip
+
+
+# Refer to the Grocery Retailer data in Problem 6.9, and the 1st-order multiple linear regression model in Problem 6.10. (Also see Homework 5 and 6.) (10 pts)
+
+A large, national grocery retailer tracks productivity and costs of its facilities closely. Data below were obtained from a single distribution center for a one-year period. Each data point for each variable represents one week of activity. 
+
+The variables included are:
+
+  - The total labor hours (Y).
+  - The number of cases shipped ($X_1$), 
+  - The indirect costs of the total labor hours as a percentage ($X_2$), 
+  - A qualitative predictor called holiday that is coded 1 if the week has a holiday and 0 otherwise ($X_3$)
+
+
+```{r}
+gr <- read.table("./data/CH06PR09.txt", header = F)
+colnames(gr) <- c("Y_labor_hours", "X1_cases_shipped", "X2_cost_labor", "X3_holiday_dummy")
+glimpse(gr)
+```
+\newpage
+
+### a. Write down the first 3 rows and the last 3 rows of the response vector. (The solution is provided so that you have an example for part b and c.) {.unnumbered}
+
+Fit regression model (6.5) to the data for three predictor variables.
+
+
+```{r}
+gr_MLR = lm(Y_labor_hours ~ X1_cases_shipped + X2_cost_labor + X3_holiday_dummy, data = gr, x = TRUE, y = TRUE)
+ls(gr_MLR)
+
+head(gr_MLR$y, n = 3)
+tail(gr_MLR$y, n = 3)
+```
+\bigskip
+
+
+\begin{equation}
+\underline{Y} = 
+\begin{pmatrix}
+   4264 \\
+   4496 \\
+   4317 \\
+   \vdots \\
+   4499 \\
+   4186 \\
+   4342 
+\end{pmatrix}
+\end{equation}
+
+Where the matrix is of dimension $52 \times 1$.
+
+\newpage
+
+### b. Write down the first 3 rows and the last 3 rows of the design matrix. Clearly state the dimensions (number of rows)×(number of columns) of the matrix. {.unnumbered}
+
+```{r}
+
+head(gr_MLR$x, n = 3)
+tail(gr_MLR$x, n = 3)
+
+```
+\bigskip
+
+
+\begin{equation}
+\underline{X} = 
+\begin{pmatrix}
+   1 & 305657 & 7.17 & 0\\
+   1 & 328476 & 6.20 & 0\\
+   1 & 317164 & 4.61 & 0\\
+   \vdots & \vdots & \vdots & \vdots \\
+   4499 & 290455 & 7.99 & 0\\
+   4186 & 411750 & 7.83 & 0\\
+   4342 & 292087 & 7.77 & 0
+\end{pmatrix}
+\end{equation}
+
+Where the matrix is of dimension $52 \times 4$.
+
+
+\newpage
+
+### c. Write down the parameter vector, and its estimate. You should have 2 vectors here. One only has the beta notations (the parameters are unknown). The other has the estimated values for the model. Clearly state the length (or the dimension) of each vector. {.unnumbered}
+
+
+```{r}
+coefficients <- data.frame(gr_MLR$coefficients)
+coefficients
+```
+
+\begin{equation}
+\underline{\beta} = 
+\begin{pmatrix}
+   {\beta_0} \\
+   {\beta_1} \\
+   {\beta_2} \\
+   {\beta_3} 
+\end{pmatrix},   \\
+\hat{\underline{\beta}} = b =
+\begin{pmatrix}
+   4140 \\
+   0.00079 \\
+   -13.166 \\
+   623.554 
+\end{pmatrix}
+\end{equation}
+
+Where the matrix is of dimension $4 \times 1$.
+
+
+

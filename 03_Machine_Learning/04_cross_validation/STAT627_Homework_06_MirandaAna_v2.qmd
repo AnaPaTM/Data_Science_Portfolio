@@ -1,0 +1,466 @@
+---
+title: "Homework 6 - Cross-Validation"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    theme: pulse
+    df_print: kable
+execute: 
+  warning: false
+---
+
+
+<style>
+.my-textbox {
+  background-color: #f5ebeb;
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+</style>
+
+<br>
+
+
+# Predicting a Grade
+
+Do by hand. A student wants to predict their final grade for the Statistical Machine Learning course using the KNN algorithm with $K = 3$. Seven friends who took the course last year had the following mid-term test scores and grades.
+
+<br>
+
+* Please find the results for problem 1 on the attached pdf file.
+
+<br>
+
+
+# Cross-Validation on Simulated Data
+
+[(Pages 222-3, chap. 5, #8)]{style="font-size: small;"}
+
+a\. Generate a simulated data set as follows:
+
+`set.seed(14); x <- rnorm (100); y <- x - 4*x^2 + rnorm(100);`
+
+```{r}
+suppressMessages(library(tidyverse))
+library(ggplot2)
+library(boot)
+
+set.seed(14)
+x <- rnorm(100)
+y <- x - 4*x^2 + rnorm(100)
+my_data <- data.frame(x,y)
+glimpse(my_data)
+```
+
+<br>
+
+* Write out the model used to generate the data in equation form.
+
+The equation is:
+
+$$ y = x -4x^2 + \epsilon$$
+
+Where:
+
+* $x \approx N(0, 1)$
+
+* $\epsilon \approx N(0, 1)$, the random error.
+
+
+<br>
+
+* Plot the data and interpret the plot.
+
+
+```{r}
+ggplot(my_data, aes(x = x, y = y)) +
+  geom_point(color = "blue", size = 2) +
+  geom_smooth(se = FALSE, color = "red", size = 1.3) +
+  theme_minimal()
+```
+
+
+
+
+<br>
+<div class="my-textbox">
+**Interpretation of the Plot:** 
+
+* The scatterplot shows a parabolic (inverted U-shaped) relationship between x and y, which was expected since $x^2$ is negative, and the overall nonlinear pattern is clearly visible.
+
+</div> 
+<br>
+
+
+
+(b) Compute the adjusted LOOCV estimates of prediction error that result from fitting each of the following four regression models:
+
+$$
+\begin{align}
+    Y &= \beta_0 + \beta_1 X + \epsilon \\
+    Y &= \beta_0 + \beta_1 X + \beta_2 X^2 + \epsilon \\
+    Y &= \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 +\epsilon \\
+    Y &= \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 + \beta_4 X^4 + \epsilon
+\end{align}
+$$
+
+You can use the following data frame or use the `I()` function in the general linear model function formula.
+
+```{r}
+# Model 1: Linear
+model1 <- glm(y ~ x, data = my_data)
+cv1 <- cv.glm(my_data, model1)
+cv1$delta
+
+# Model 2: Quadratic
+model2 <- glm(y ~ poly(x, 2), data = my_data)
+cv2 <- cv.glm(my_data, model2)
+cv2$delta
+
+# Model 3: Cubic
+model3 <- glm(y ~ poly(x, 3), data = my_data)
+cv3 <- cv.glm(my_data, model3)
+cv3$delta
+
+# Model 4: 4th degree polynomial
+model4 <- glm(y ~ poly(x, 4), data = my_data)
+cv4 <- cv.glm(my_data, model4)
+cv4$delta
+```
+<br>
+
+(c) Which of these models have the smallest adjusted prediction mean squared error as estimated by LOOCV? Is this what you expected? Explain your answer.
+
+
+<br>
+<div class="my-textbox">
+**Interpretation:** 
+
+The quadratic model is has best fitting based on LOOCV, which matches the true nature of the data used to simulate the data.
+
+* Model 1 (Linear) performs poorly — LOOCV error is the highest. It misses the bell shpe in the data.
+
+* Model 2 (Quadratic) fits the best — lowest LOOCV error — agreeing with the true data structure.
+
+* Models 3 and 4 do not significantly improve the prediction error and might slightly overfit, as seen in slightly higher prediction errors.
+
+</div> 
+<br>
+
+
+d.  Use one call to `anova()` to compare all four models using the proper `test=` value and interpret the results in terms of the $p$-value.
+
+
+```{r}
+aout <- anova(model1, model2, model3, model4, test = "Chisq")
+aout
+```
+
+<br>
+<div class="my-textbox">
+**Interpretation:** 
+
+* Model 1 to Model 2: p-value < 2e-16, meaning that adding the quadratic term $x^2$ significantly improves the model.
+
+* Model 2 to Model 3: p-value = 0.7482, meaning that Adding the cubic term $x^3$ does not significantly improved the model.
+
+* Model 3 to Model 4: p-value = 0.7538, meaning that adding the fourth degree polinomial term $x^4$ does not significantly improved the model.
+
+In conclusion, the quadratic model is the best fitting model. This also matches our earlier LOOCV findings.
+
+</div> 
+<br>
+
+
+
+e.  Repeat step b but with $K=10$-Fold validation and compare the prediction mean squared error. What do you notice compared to LOOCV?
+
+-   Use a seed of 14 where appropriate.
+
+
+```{r}
+# Model 1: Linear
+set.seed(14)
+cv1_10 <- cv.glm(my_data, model1, K = 10)
+cv1_10$delta
+
+# Model 2: Quadratic
+set.seed(14)
+cv2_10 <- cv.glm(my_data, model2, K = 10)
+cv2_10$delta
+
+# Model 3: Cubic
+set.seed(14)
+cv3_10 <- cv.glm(my_data, model3, K = 10)
+cv3_10$delta
+
+# Model 4: 4th degree polynomial
+set.seed(14)
+cv4_10 <- cv.glm(my_data, model4, K = 10)
+cv4_10$delta
+```
+
+<br>
+<div class="my-textbox">
+
+* Model 2 is still the best fitting model here with the smallest prediction error, as expected, but it's actually larger than with LOOCV. 
+
+* The error for model 1 is slightly smaller then that of LOOCV. 
+
+* However, the errors for Models 2, 3 and 4 are larger than with LOOCV.
+
+</div> 
+<br>
+
+
+
+
+# Predicting Defaults on Loans
+
+[(Pages 220-221, chap. 5, #5)]{style="font-size: small;"}
+
+<br>
+
+Load the 'Default" data set from the {ISLR2} package.
+
+```{r}
+#| label: Default-set-up
+#| message: false
+#| echo: fenced
+#| include: true
+library(tidyverse)
+library(ISLR2)
+data("Default")
+glimpse(Default)
+```
+
+<br>
+
+* Use logistic regression to create a full model for predicting the probability of default based on predictors `income`, `balance`, and `student`.
+
+```{r}
+lr_fit <- glm(default ~ income + balance + student, family = binomial, data = Default)
+summary(lr_fit)
+```
+
+
+<br>
+<div class="my-textbox">
+The predictors `balance` and the dummy variables for `student` status are statistically significant at 0.05 level, meaning that they are associated with the probability of default variable. However, `income` is not statistically significant in this model.
+</div> 
+<br>
+<br>
+
+
+
+* Use each of the following methods to estimate the *prediction error rate* of the full model and then the *prediction error rate* of a reduced model without `student`.
+
+a.  The validation set approach. Use a 60% split for training data, a seed of 123, and a threshold of .5 where appropriate.
+
+
+* With `student`:
+
+```{r}
+set.seed(123)
+training_pct <- 0.6
+n <-  nrow(Default)
+Z <- sample(1:n, floor(n*training_pct))
+
+dep_train <- Default[Z,]
+dep_test <- Default[-Z,]
+
+lr_fit_train <- glm(default ~ income + balance + student, 
+                    family = binomial, 
+                    data = dep_train)
+
+Probs_test <- predict(object = lr_fit_train, 
+                      newdata = dep_test, type = "response")
+
+YesPredict <- 1 * (Probs_test >= 0.5)
+
+table(YesPredict)
+
+confusion_tab <- table(dep_test$default, YesPredict)
+confusion_tab
+
+(confusion_tab[1,1] + confusion_tab[2,2]) / sum(confusion_tab) #classification rate = accuracy
+(confusion_tab[1,2] + confusion_tab[2,1]) / sum(confusion_tab) #error rate
+```
+
+<br>
+
+
+* Without `student`:
+
+```{r}
+lr_fit_train_r <- glm(default ~ income + balance, 
+                      family = binomial, 
+                      data = dep_train)
+
+Probs_test <- predict(object = lr_fit_train_r, 
+                      newdata = dep_test, type = "response")
+
+YesPredict <- 1 * (Probs_test >= 0.5)
+
+table(YesPredict)
+
+confusion_tab <- table(dep_test$default, YesPredict)
+confusion_tab
+
+(confusion_tab[1,1] + confusion_tab[2,2]) / sum(confusion_tab) #classification rate = accuracy
+(confusion_tab[1,2] + confusion_tab[2,1]) / sum(confusion_tab) #error rate
+```
+
+
+<br>
+<br>
+
+
+b.  Leave-one-out cross-validation. Use a seed of 123 and a threshold of .5 for the loss function.
+
+-   With 10,000 observations this will run for a while (mine took 5.9 minutes). Suggest including a chunk option for cache, e.g., `#| cache: true`, so it will save the results and won't run as long when you render.
+
+```{r}
+L <- function(Y, p) {
+  mean(1 * (Y == 1 & p <= 0.5) | (1 * (Y == 0 & p > 0.5)),
+       na.rm = TRUE)
+}
+```
+
+
+<br>
+
+* With `student`:
+
+```{r}
+#| cache: true
+log_reg_loocv_1 <- glm(default ~ income + balance + student, 
+                       family = binomial, 
+                       data = Default)
+set.seed(123)
+cv_out_1 <- cv.glm(Default, log_reg_loocv_1, cost = L)
+cv_out_1$delta
+```
+
+<br>
+
+* Without `student`:
+
+```{r}
+#| cache: true
+log_reg_loocv_2 <- glm(default ~ income + balance, 
+                       family = binomial, 
+                       data = Default)
+set.seed(123)
+cv_out_2 <- cv.glm(Default, log_reg_loocv_2, cost = L)
+cv_out_2$delta
+```
+
+
+
+<br>
+<br>
+
+c.  $K$-fold cross-validation for $K = 10$ and $K = 100$. Use a seed of 123, and the same loss function with a threshold of .5 where appropriate.
+
+
+* With `student`:
+
+
+```{r}
+#| cache: true
+set.seed(123)
+cv_out_10_s <- cv.glm(Default, log_reg_loocv_1, cost = L, K = 10)
+cv_out_10_s$delta
+```
+
+<br>
+
+```{r}
+#| cache: true
+set.seed(123)
+cv_out_100_s <- cv.glm(Default, log_reg_loocv_1, cost = L, K = 100)
+cv_out_100_s$delta
+```
+
+
+<br>
+
+
+* Without `student`:
+
+
+```{r}
+#| cache: true
+set.seed(123)
+cv_out_10 <- cv.glm(Default, log_reg_loocv_2, cost = L, K = 10)
+cv_out_10$delta
+```
+
+<br>
+
+```{r}
+#| cache: true
+set.seed(123)
+cv_out_100 <- cv.glm(Default, log_reg_loocv_2, cost = L, K = 100)
+cv_out_100$delta
+```
+
+
+<br>
+
+
+Summarize the results.
+
+-   Compare the validation set models without and with `student` using `anova()` with the appropriate `test=`.
+
+```{r}
+aout <- anova(lr_fit_train_r, lr_fit_train, test = "Chisq")
+aout
+```
+
+<br>
+<div class="my-textbox">
+
+The p-value = 0.068 is statistically significant at 0.1 level. That actually suggests that the reduced model performs better than the full model.  
+
+</div> 
+<br>
+
+
+
+-  Interpret the results of the different methods/models and the anova test and recommend the better model.
+
+
+<br>
+<div class="my-textbox">
+Find below the summary for the *prediction error rates* for each model tested:
+
+* Validation set method, with `student`: 0.0265
+
+* Validation set method, without `student`: 0.02625
+
+* Model LOOCV, with `student`: 0.02680000
+
+* Model LOOCV, without `student`: 0.02630000
+
+* Model LOOCV with k = 10, with `student`: 0.0268
+
+* Model LOOCV with k = 100, with `student`: 0.026800
+
+* Model LOOCV with k = 10, without `student`: 0.02610
+
+* Model LOOCV with k = 100, without `student`: 0.026300
+
+The model with the smallest prediction error rate: 0.02610, seems to be the LOOCV with K = 10 and without `student`.
+
+</div> 
+
+

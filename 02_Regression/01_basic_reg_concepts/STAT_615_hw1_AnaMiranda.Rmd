@@ -1,0 +1,166 @@
+---
+title: "DATA 615 - Regression: Homework - 1"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  # word_document: 
+  #   toc: yes
+  #   toc_depth: 2
+  #   number_sections: no
+  pdf_document: 
+    toc: yes
+    toc_depth: 2
+    number_sections: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(patchwork)
+```
+
+
+## Q.1. (5 pts)
+
+Yes, "I have read Lab 1. I have installed relevant software, and am ready to use software for homework, labs, and data analysis."
+
+## Q.2, Problem 1.20  (10 pts)
+
+```{r}
+# Load data
+cm <- read.table("./data1/CH01PR20.txt", header = F)
+colnames(cm) <- c("time", "copiers")
+glimpse(cm)
+
+summary(cm)
+
+```
+
+Observation: For each call, X is the number of copiers serviced and Y is the total number of minutes spent by the service person.
+
+
+### Graphical summary (optional, not part of HW)
+
+```{r}
+
+ggplot(cm, mapping = aes(x = time)) +
+  geom_histogram(fill = "gray", color = "black") +   theme_bw() -> g1
+
+ggplot(cm, mapping = aes(x = copiers)) +
+  geom_histogram(fill = "gray", color = "black") +   theme_bw() -> g2
+
+(g1 + g2)
+
+```
+
+
+- Findings:
+
+    - Variable `time` seems to be somewhat uniformally distributed and with no visible outliers.
+    - Variable `copiers` seems to be a little skewed to the right and with no visible outliers.
+      
+
+```{r}
+
+ggplot(cm, mapping = aes(x = copiers, y = time)) +
+  geom_point() +
+  theme_bw()
+
+```
+
+- Findings:
+
+    - The variables `time` and `copiers` present a positive and strong linear corretation. I.e, as `copiers` increase, `time` also increases.
+    
+    
+
+### a. Estimated regression function (You do NOT have to copy the questions. I often include a brief description for my convenience.)
+
+
+```{r}
+
+cm_SLR <- lm(data = cm, time ~ copiers)
+summary(cm_SLR)
+
+```
+
+The estimated regression line (function) is:
+
+$$\widehat{time} = -0.5802 + 15.0352(copiers)$$
+
+### b. Plot data with regression line
+
+```{r}
+
+ggplot(cm, mapping = aes(x = copiers, y = time)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, colour = "red") +
+  theme_bw()
+
+```
+
+The above plot shows indeed that the variables `copiers` and `time` hold a strong linear relationship. In fact, based on the linear model adjusted $R-squared = 0.9565$, 95% of the total variation in `time`, can be explained by the simple linear regression with `copiers` as the predictor.
+
+
+### c. Interpret the intercept
+
+- The estimated intercept is $\beta_0 = -0.5802$. This means the predicted value of `time` when the value of `copiers` is equal to zero.
+
+- The estimated slope is positive. This means that for every unit increase in `copiers`, the `time` is expected to increase 15.0352.
+
+
+
+### d. Predict y at x = 5.
+
+$$\widehat{time} = -0.5802 + 15.0352(5) = 74.60$$
+
+## Q.3. Problem 1.24 (5 pts)
+
+### a. Residuals and Sum of the squared residuals
+
+```{r}
+cm_SLR$residuals
+
+anova(cm_SLR)
+```
+
+As provided by the ANOVA output above, the sum squared of the residuals is 3.416 with 43 degrees of freedom.
+
+
+### b. Estimate $\sigma^2$ and $\sigma$.
+
+The estimated variance of the error is $MSE =  3.416/43 = 79.45$. Therefore, the estimated standard deviation of the model is $\sqrt{MSE} = \sqrt{79.45} =  8.9135$.
+
+
+```{r}
+
+install.packages("ggfortify")
+library(ggfortify)
+
+autoplot(cm_SLR)
+
+library(broom)
+df <- augment(cm_SLR)
+df
+ggplot(df, aes(x = .fitted, y = .resid)) + geom_point()
+
+ls(cm_SLR)
+
+ggplot(cm_SLR, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0)
+
+ggplot(cm_SLR, aes(sample = .resid)) +
+  geom_qq() +
+  geom_qq_line() +
+  #geom_abline(color = "red") +
+  geom_abline(color = "red", linetype = "dashed") +
+    ggtitle("Normal Q-Q Plot of Residuals") +
+  theme_bw()
+
+```
+

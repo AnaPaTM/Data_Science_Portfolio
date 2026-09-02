@@ -1,0 +1,404 @@
+---
+title: "DATA 615 - Regression: Homework - 8"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(patchwork)
+library(corrplot)
+```
+
+
+\newpage
+
+
+# Problem 8.4.(skip g). Muscle mass (p. 335. See data description in Problem 1.27, p.36. 25 pts.)
+
+Refer to Muscle mass Problem 1.27. Second-order regression model (8.2) with independent normal error terms is expected to be appropriate.
+
+A person's muscle mass is expected to decrease with age. To explore this relationship in women, a nutritionist randomly selected 15 women from each 10-year age group, beginning with age 40 and ending with age 79. The results follow; X is age, and Y is a measure of muscle mass. Assume that first-order regression model (1.1) is appropriate.
+
+  
+```{r}
+mm <- read.table("./data/CH01PR27.txt", header = F)
+colnames(mm) <- c("Y_muscle_mass", "X_age")
+summary(mm)
+
+mm$X_age_2 <- (mm$X_age * mm$X_age)
+mm$X_age_centered <- (mm$X_age - mean(mm$X_age))
+glimpse(mm)
+```
+  
+\newpage
+
+### a. Fit regression model (8.2). Plot the fitted regression function and the data. Does the quadratic regression function appear to be a good fit here? Find R2. {.unnumbered}
+
+
+```{r}
+mm_MLR = lm(Y_muscle_mass ~  X_age + I(X_age^2), data = mm)
+summary(mm_MLR)
+```
+\bigskip
+
+* **The estimated regression function is:**
+
+$$\hat{Y} = 207.35 - 2.965X_1 + 0.0149X_1^2$$
+
+\bigskip
+* The coefficient of determination R-squared = 0.7632, meaning that 76.32% of the variation in the muscle mass can be explained by this model with age and age squared as predictors.
+
+
+\bigskip
+
+```{r}
+ggplot(mm, mapping = aes(x = X_age , y = Y_muscle_mass)) +
+geom_point() +
+geom_smooth( se = FALSE, colour = "blue") +
+geom_smooth(method = "lm", se = FALSE, colour = "red") +
+theme_bw()
+```
+
+
+* **Conclusion:**  The quadratic regression function does not seems to be a good fit for this data by examining the plot above since the data mostly follows a linear or straight line relationship.
+
+
+\newpage
+
+### b. Test whether or not there is a regression relation; use alpha = 0.05. State the alternatives, decision rule, and conclusion.  {.unnumbered}
+
+
+```{r}
+mm_null = lm(Y_muscle_mass ~ 1, data = mm)
+anova(mm_null, mm_MLR)
+```
+
+\bigskip
+The hypotheses are:
+
+* $H_0: \beta_1 = \beta_2 = 0$, meaning the model is not significant overall.
+* $H_a: \beta_k \neq 0$, for at least one Beta, where k = 1, ..., p-1 and at least one predictor is significantly associated with the response variable. 
+
+The rule is to reject $H_0$ if the p-value < alpha or F_observed > $F_{(0.05, \ df_1 = df_R = 2, \  df_2 = df_E = 57)}$
+
+The F-test of overall significance, along with the p-value, is calculated in the ANOVA summary table above: F_observed = 91.84 and p-value < 2.2e-16, as well as provided in the output summary table of the multiple regression analysis presented above.
+
+The F-critic is: 
+
+```{r}
+n = 60
+p = 3
+f_obs = 91.84
+
+fcrit <- qf(p = 0.05, df1 = p-1, df2 = (n-p), lower.tail = FALSE)
+fcrit
+
+p_value = 1 - pf(f_obs, (p-1), (n-p))
+p_value
+```
+
+\bigskip
+* **Conclusion:**  With a very small p-value = 3.316e-12 being a lot smaller than the significance level of 0.05, and the F_observed = 91.84 much larger than the F-critic = 3.16, there is enough evidence to reject the null hypothesis in favor of the alternative hypothesis. Therefore, overall the regression model is significant at 0.05 significance level.
+
+
+\newpage
+
+### c. Estimate the mean muscle mass for women aged 48 years; use a 95 percent confidence interval. Interpret your interval.  {.unnumbered}
+
+
+```{r}
+predict(mm_MLR, 
+        newdata = data.frame(X_age = 48), 
+        se = T, 
+        level = 0.95, 
+        interval = "confidence")
+```
+
+* **Findings:** With 95% confidence level, the confidence interval for the mean muscle mass (Y) for women aged 48 years is: $\hat Y = 99.25, \ CI: (96.29, 102.22)$
+
+
+\newpage
+
+### d. Predict the muscle mass for a woman whose age is 48 years; use a 95 percent prediction interval. Interpret your interval.  {.unnumbered}
+
+
+```{r}
+predict(mm_MLR, 
+        newdata = data.frame(X_age = 48), 
+        se = T, 
+        level = 0.95, 
+        interval = "prediction")
+```
+* **Findings:** With 95% confidence level, the prediction interval for the mean muscle mass (Y) for women aged 48 years is: $\hat Y = 99.25, \ CI: (82.91, 115.60)$
+
+
+\newpage
+
+### e. Test whether the quadratic term can be dropped from the regression model; use alpha = 0.05. State the alternatives, decision rule, and conclusion.  {.unnumbered}
+
+```{r}
+
+mm_MLR2 = lm(Y_muscle_mass ~ X_age, data = mm)
+anova(mm_MLR2, mm_MLR)
+
+```
+\bigskip
+The hypotheses are:
+
+* $H_0: \beta_2 = 0$
+* $H_a: \beta_2 \neq 0$
+
+\bigskip
+From the ANOVA table s(b2) = 0.00836. t-observed = 0.0149/.00836 = 1.7759. The t-critic = 2.00247. 
+
+\bigskip
+The decision rule is: Conclude Ho if t-observed <= t-critic.
+
+\bigskip  
+* **Conclusion:** Since the t-observed = 1.7759 is less than the t-critic = 2.00247, we fail to reject Ho and conclude that the quadratic term can be dropped from the regression model.
+
+
+\newpage
+
+### f. Express the fitted regression function obtained in part (a) in terms of the original variable X.  {.unnumbered}
+
+
+Skipped
+
+
+\newpage
+
+### g. Calculate the coefficient of simple correlation between X and X2 and between x and x2. Is the use of a centered variable helpful here?  {.unnumbered}
+
+
+```{r}
+cor(mm$X_age, mm$X_age_2)
+
+cor(mm$X_age, mm$X_age_centered)
+```
+
+* **Conclusion:** The correlation coefficient is r = 0.9961 or 99.61%, meaning that Age and Age squared are highly correlated and indicating there is a problem of multicolinearity between those two variables. The centered variable is not helpful at all since it's the exactly same variable.
+
+
+\newpage
+
+# Problem 8.25.(plus c, d, e, f) Grocery retailer (p.339. See data description in Problem 6.9, p. 249. 30 pts)
+
+
+A large, national grocery retailer tracks productivity and costs of its facilities closely. Data below were obtained from a single distribution center for a one-year period. Each data point for each variable represents one week of activity. 
+
+The variables included are:
+
+  - The total labor hours (Y).
+  - The number of cases shipped ($X_1$), 
+  - The indirect costs of the total labor hours as a percentage ($X_2$), 
+  - A qualitative predictor called holiday that is coded 1 if the week has a holiday and 0 otherwise ($X_3$), 
+  
+```{r}
+gr <- read.table("./data/CH06PR09.txt", header = F)
+colnames(gr) <- c("Y_labor_hours", "X1_cases_shipped", "X2_cost_labor", "X3_holiday_dummy")
+gr$X1_cases_shipped_centered <- (gr$X1_cases_shipped - mean(gr$X1_cases_shipped))
+gr$X1_2 <- (gr$X1_cases_shipped_centered * gr$X1_cases_shipped_centered)
+gr$X1_X3 <- (gr$X1_cases_shipped_centered * gr$X3_holiday_dummy)
+gr$X1_2_X3 <- (gr$X1_2 * gr$X3_holiday_dummy)
+glimpse(gr)
+```
+
+\newpage
+
+### a. Fit regression model (8.58) using the number of cases shipped (X1) and the binary variable (X3) as predictors. {.unnumbered}
+
+
+\bigskip
+
+* **The regression model is:**
+
+\begin{center}
+$$Y_i = \beta_0 + \beta_1X_1 + \beta_2X_1^2 + \beta_3X_3 + \beta_4X_1*X_3 + \beta_5X_1^2*X_3 + e_i$$
+\end{center}
+
+
+\bigskip
+
+
+```{r}
+gr_MLR = lm(Y_labor_hours ~  X1_cases_shipped_centered + I(X1_cases_shipped_centered^2) + X3_holiday_dummy + X1_cases_shipped_centered:X3_holiday_dummy + I(X1_cases_shipped_centered^2):X3_holiday_dummy, data = gr)
+summary(gr_MLR)
+```
+
+
+* **Findings:** Only one of the predictors, the holiday indicator (X3), seem to present a significant relationship with total labor hours. All the other choices of predictors don't seem to have any relationship with the response variable.
+
+
+\newpage
+
+### b. Test whether or not the interaction terms and the quadratic term can be dropped from the model; use a = .05. State the alternatives, decision rule, and conclusion. What is the P-value of the test? {.unnumbered}
+
+
+```{r}
+gr_MLR2 = lm(Y_labor_hours ~  X1_cases_shipped + X3_holiday_dummy, data = gr)
+summary(gr_MLR2)
+```
+
+```{r}
+anova(gr_MLR2, gr_MLR)
+```
+
+\bigskip
+The hypotheses are:
+
+* $H_0: \beta_2 = \beta_4 = \beta_5 = 0$
+* $H_a$: at least one beta is different from zero. 
+
+The rule is to reject $H_0$ if the p-value < alpha or F_observed > F_critic.
+
+The F-test of overall significance, along with the p-value, is calculated in the ANOVA summary table above: F_observed = 0.0223 and p-value = 0.9954, as well as provided in the output summary table of the multiple regression analysis presented above.
+
+The F-critic is: 
+
+```{r}
+n = 57
+p = 6
+f_obs = 0.0223
+
+fcrit <- qf(p = 0.05, df1 = p-1, df2 = (n-p), lower.tail = FALSE)
+fcrit
+
+p_value = 1 - pf(f_obs, (p-1), (n-p))
+p_value
+```
+
+\bigskip
+* **Conclusion:**  With a p-value = 0.9997729 much larger than the significance level of 0.05, and the F_observed = 0.0223 much smaller than the F-critic = 2.396605, we cannot reject the null hypothesis in favor of the alternative hypothesis. Therefore, the squares and the interactions terms must not be needed in the model at 0.05 significance level.
+
+
+\newpage
+
+### c. Why would we wish to include number of cases (X1) in the regression when our interest is in estimating the effects of holiday on labor hours? {.unnumbered}
+
+
+The number of cases shipped (X1) can help to make the model more robust and more accurate since it can function as a confounding variable effecting both Y and X3, since we expect labor cost to change as the number of cases shipped increases or decreases.
+
+
+\newpage
+
+### d. Refer to the model you fit in part (a). Write down the first 3 rows of the design matrix you use in part (a). Clearly state the dimensions of the matrix. (Hint: treat the polynomial terms and/or the interaction terms as if they were separate predictors.) {.unnumbered}
+
+```{r}
+head(gr, n=3)
+```
+
+
+\begin{equation}
+\underline{X} = 
+\begin{pmatrix}
+   1 & 2963.885 & 0 & 8784612 & 0 & 0\\
+   1 & 25782.885 & 0 & 664757139 & 0 & 0\\
+   1 & 14470.885 & 0 & 209406502 & 0 & 0\\
+   \vdots & \vdots & \vdots & \vdots \\
+\end{pmatrix}
+\end{equation}
+
+Where the matrix is of dimension $52 \times 6$.
+
+
+\newpage
+
+### e. Refer to the model you fit in part (a). Write down the first 3 rows of the response vector. Then write down the parameter vector, and its estimate. Clearly state the length (or the dimension) of each vector. {.unnumbered}
+
+
+\begin{equation}
+\underline{Y} = 
+\begin{pmatrix}
+   4264 \\
+   4496 \\
+   4317 \\
+   \vdots \\
+   4499 \\
+   4186 \\
+   4342 
+\end{pmatrix}
+\end{equation}
+
+Where the matrix is of dimension $52 \times 1$.
+
+\bigskip
+\bigskip
+
+\begin{equation}
+\underline{\beta} = 
+\begin{pmatrix}
+   {\beta_0} \\
+   {\beta_1} \\
+   {\beta_2} \\
+   {\beta_3} \\ 
+   {\beta_4} \\ 
+   {\beta_5} 
+\end{pmatrix},   \\
+\hat{\underline{\beta}} = b =
+\begin{pmatrix}
+   4.296e+03 \\
+   9.031e-04 \\
+   -1.577e-09 \\
+   6.144e+02 \\
+   -1.884e-04 \\
+   1.808e-09 \\
+\end{pmatrix}
+\end{equation}
+
+Where the matrix is of dimension $6 \times 1$.
+
+
+
+### f. Compare your results in part (d, e) against your answers in HW 7, Question 3. Comment on what’s changed and what’s unchanged. {.unnumbered}
+
+The results in part (d, e) above differ from the answer in HW 7 because the model used in part (a) above used polynomial and interaction terms and, consequently, has more predictors in the model. The design matrix and the parameter matrix are different. The response matrix is unchanged.
+
+
+\newpage
+
+# Projects 8.39.(plus d) CDI data (p.341. See data description in Appendix C.2. 20pts)
+
+Refer to the CDI data set in Appendix C.2. The number of active physicians (Y) is to be regressed against total population (X1), total personal income (X2), and geographic region (X3, X4, X5).
+
+
+```{r}
+cdi <- read.table("./data/APPENC02.txt", header = F) 
+cdi %>% 
+  select(V5, V8, V16, V17) %>% 
+  rename(X1_tot_pop = V5 , Y_active_phis = V8, X2_pers_income = V16, X3_geo_reg = V17) %>% 
+  mutate(X3_geo_reg = as.factor(X3_geo_reg)) -> cdi2
+
+glimpse(cdi2)
+
+summary(cdi2)
+```
+
+
+### a. Fit a first-order regression model. Let X3 = 1 if NE and 0, otherwise; X4 = 1 if NC and 0 otherwise; and X5 = 1 if S and 0 otherwise. {.unnumbered}
+
+```{r}
+cdi_MLR = lm(Y_active_phis ~  X1_tot_pop + X2_pers_income + X3_geo_reg, data = cdi2)
+summary(cdi_MLR)
+```
+
+
+### b. Examine whether the effect for the northeastern region on number of active physicians differs from the effect for the north central region by constructing an appropriate 90 percent confidence interval. Interpret your interval estimate. {.unnumbered}
+
+
+
+### c. Test whether any geographic effects are presente; use alpha = 0.10. State the alternatives, decision rule, and conclusion. What is the P-value of the test? {.unnumbered}
+
+

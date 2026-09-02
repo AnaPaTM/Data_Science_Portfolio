@@ -1,0 +1,72 @@
+---
+title: "Homework 5 - KNN"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    theme: pulse
+    df_print: kable
+execute: 
+  warning: false
+---
+
+<br>
+
+# Predicting a Grade
+
+Do by hand. A student wants to predict their final grade for the Statistical Machine Learning course using the KNN algorithm with $K = 3$. Seven friends who took the course last year had the following mid-term test scores and grades.
+
+
+
+##### a) Estimate the prediction error rate of the algorithm, using the validation-set method, with Friends 2, 3, 4, and 6 as training and Friends 1, 5, 7 as testing data. {-}
+
+<br>
+
+
+| Friend          |   1   |  2  |  3  |  4  |   5   |  6  |   7   | $\hat{Y}$ |
+|-----------------|:-----:|:---:|:---:|:---:|:-----:|:---:|:-----:|:---------:|
+| Midterm         |  90   | 88  | 83  | 78  |  85   | 89  |  93   |           |
+| Final Grade     | **A** |  A  |  B  |  B  | **A** |  B  | **A** |           |
+| Test 1: 90 Dist |       |     |     |     |       |     |       |           |
+| Test 1          |       |     |     |     |       |     |       |           |
+| Test 5: 85 Dist |       |     |     |     |       |     |       |           |
+| Test 5          |       |     |     |     |       |     |       |           |
+| Test 7: 93 Dist |       |     |     |     |       |     |       |           |
+| Test 7          |       |     |     |     |       |     |       |           |
+
+
+<br>
+<br>
+
+
+##### b) Estimate the prediction error rate of the algorithm using the leave-one-out cross-validation method. {-}
+
+<br>
+
+LOOCV 
+
+|             |            |     |     |     |     |     |     |           |
+|-------------|:----------:|:---:|:---:|:---:|:---:|:---:|:---:|:---------:|
+| Friend      |     1      |  2  |  3  |  4  |  5  |  6  |  7  |           |
+| Midterm     |     90     | 88  | 83  | 78  | 85  | 89  | 93  |           |
+| Final Grade |     A      |  A  |  B  |  B  |  A  |  B  |  A  | $\hat{Y}$ |
+| Dist - 1    |            |     |     |     |     |     |     |           |
+| Pred - 1    |            |     |     |     |     |     |     |           |
+| Dist - 2    |            |     |     |     |     |     |     |           |
+| Pred - 2    |            |     |     |     |     |     |     |           |
+| Dist - 3    |            |     |     |     |     |     |     |           |
+| Pred - 3    |            |     |     |     |     |     |     |           |
+| Dist - 4    |            |     |     |     |     |     |     |           |
+| Pred - 4    |            |     |     |     |     |     |     |           |
+| Dist - 5    |            |     |     |     |     |     |     |           |
+| Pred - 5    |            |     |     |     |     |     |     |           |
+| Dist - 6    |            |     |     |     |     |     |     |           |
+| Pred - 6    |            |     |     |     |     |     |     |           |
+| Dist - 7    |            |     |     |     |     |     |     |           |
+| Pred - 7    |            |     |     |     |     |     |     |           |
+| Prediction  | Error Rate |     |     |     |     |     |     |           |
+

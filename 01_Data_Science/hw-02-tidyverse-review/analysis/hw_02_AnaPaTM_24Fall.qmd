@@ -1,0 +1,576 @@
+---
+title: 'DATA-413/613 HW 2: Tidyverse Review'
+author: "Ana Miranda"
+number-sections: true
+code-line-numbers: true
+format:
+  html:
+    embed-resources: true
+
+---
+
+# Analyze the English Open Word List
+
+The [English Open Word List (EWOL)](https://github.com/kloge/The-English-Open-Word-List/tree/master) was developed to be more usable for computer word games (than the much larger ENABLE word list) by removing all words longer than 10 letters and all proper nouns and words requiring diacritical symbols, hyphens, and apostrophes. It was developed in 2005 so does not have many "modern" or slang words, e.g., blog or insta. It still has some words with unusual symbols caused by converting to Unicode (UTF-8) but they will not affect your results below.
+
+1.  The data is on the AU Data Science GitHub site in two formats. Each has the same data in a tibble with 128,985 words (rows).
+    -   The Rds format is a compressed version for sorting single R objects.
+    -   The [parquet](https://r4ds.hadley.nz/arrow#sec-parquet) format is also a binary format designed by Apache for working with big data and storing the data in column-oriented (not row-oriented) format. To use parquet format install the {arrow} package. The file size is less than 50% of the Rds file.
+
+-   Load the data using one of the commands below and assign a variable name to it.
+
+```{r}
+
+#| name: load-eowl
+
+library(tidyverse)
+
+```
+
+
+```{r}
+
+e_words <- readRDS(url("https://raw.githubusercontent.com/AU-datascience/data/main/413-613/ewol_words.rds", "rb"))
+
+```
+
+
+-   Use `str()` on the loaded data.
+
+```{r}
+
+str(e_words)
+
+```
+
+
+2.  Find "et"s.
+a.  The letters "e" and "t" are the most common in the English language. Find the words with the combination "et" appearing two or more times. Filter to just those words with the most "et"'s in them and sort so the longest words are on top. Use code to show words, the number of "et"s and their length. There should be 19 words.
+
+```{r}
+
+e_words %>%
+  filter(str_detect(word, "et")) %>%
+  mutate(count = str_count(word, "et"), length = str_length(word)) %>%
+  filter(count >=2) %>% 
+  arrange(desc(length)) -> et_words_2more
+et_words_2more
+
+```
+
+
+b.  Of these words with the most "et"'s, remove the words with the maximum length, then use a {dplyr} slice function (with default arguments) to show the five next longest words? Why do you get 6 words and not 5?
+
+```{r}
+
+et_words_2more %>%
+  filter(length < max(length)) %>% 
+  slice_max(length, n=5, with_ties = TRUE)
+  
+```
+ 
+- **Answer:** Because there are ties in the ordering of the rows since all values are the same. In order to ignore ties, the default command "with_ties = TRUE" should be set to FALSE. See result below:
+
+
+```{r}
+et_words_2more %>%
+  filter(length < max(length)) %>% 
+  slice_max(length, n=5, with_ties = F)
+```
+
+
+3.  Use a tidyverse approach to find all words with an identical first and second half of the word. Show how many you got. You should get 151 words. DATA 613-students must solve using a regex pattern. Recommend creating a logical variable that captures if the word meets the criterion.
+
+-   If a word has an odd number of letters, exclude the middle character.
+      - "murmur" counts because "mur" is both the first and second half.
+      - "derider" counts because the middle "i" is excluded so "der" is both the first and second half.
+-   Save the results to a variable in a tibble that includes the original variables.
+
+```{r}
+
+e_words %>% 
+  mutate(n_letters = str_length(word)) %>% 
+  mutate(first_part = if_else((n_letters %% 2 == 0), 
+                               str_sub(word, 1, n_letters/2), 
+                               str_sub(word, 1, floor(n_letters/2))), 
+         sec_part =   if_else((n_letters %% 2 == 0), 
+                               str_sub(word, (n_letters/2)+1, n_letters), 
+                               str_sub(word, (ceiling(n_letters/2))+1, n_letters))
+         ) %>% 
+  filter(first_part == sec_part) -> eq_fist_last_parts
+eq_fist_last_parts
+
+```
+
+ 
+4.  Use the results from 3 to find and show the longest word(s) with an identical first and second half of the word. There should be four words.
+
+```{r}
+
+eq_fist_last_parts %>%
+  group_by(n_letters) %>% 
+  count()
+
+
+eq_fist_last_parts %>%
+  arrange(desc(n_letters)) %>% 
+  slice_max(n_letters, n=4)
+
+```
+
+
+
+# Country Names
+
+The goal is to create an updated country code data frame with the original and world bank names, where they exist, along with a set of new names without punctuation. You are not allowed to rename any existing variables.
+
+1.  Load the {gapminder} package so you can access the `country_codes` data frame. Use a {readr} function and relative path to read in the World Bank data in `wb_country_income_classification_2023.csv` in the `data` folder.
+
+-   These two data sets are *not* consistent on all of the country names.
+-   Show the variable names for each data set
+
+
+```{r}
+
+#install.packages("gapminder")
+library(gapminder)
+
+#help(gapminder)
+
+glimpse(gapminder)
+
+```
+
+- **Answer:** Observation: The {gapminder} data frame does not contain country codes in it and only country names.
+
+
+```{r}
+
+wd_country_income <- read_csv("../data/wb_country_income_classification_2023.csv", 
+                              col_names = TRUE, 
+                              na = c("NA", "..", ""), 
+                              skip_empty_rows = TRUE, 
+                              n_max = 267)
+
+glimpse(wd_country_income)
+
+names(wd_country_income) <- c("economy"	,
+                              "code"	,
+                              "region" ,
+                              "income_group" ,
+                              "lending_category")
+glimpse(wd_country_income)
+
+```
+
+2.  Use a {dplyr} filtering join function to get the gapminder country_codes `country` values that are **not in** the World Bank data frame `Economy` variable. Show just the values for the `country` names not in the World Bank data. There should be 23 countries.
+
+```{r}
+
+#shows only what is in x and not in y.
+gapminder_names_only = anti_join(gapminder, wd_country_income, by = join_by("country" == "economy")) 
+
+gapminder_names_only %>% 
+  group_by(country) %>% 
+  count()
+
+```
+
+- **Answer:** I only found 14 country names (not 23) that are in the {gapminder} data only and not in the World Bank data base.
+
+
+3.  Use a {dplyr} mutating join function to add the country names in World Bank `Economy` to the `country_codes` data frame in a new variable called `wb_name` **for only those countries that are in the {gapminder} `country_codes` data frame**. There should be 187 countries.
+
+-   Save to a data frame called `country_codes_wb` and show its first 5 rows.
+
+```{r}
+
+
+
+
+```
+
+- **Answer:** Observation: Couldn't understand where to get the country_codes from since the "gapminder" data doesn't have the country code variable to be used in the merge, that way making it impossible to fix the names.
+
+
+4.  Use a {stringr} function with regex `[:punct:]` to filter to only the rows in `country_codes_wb` where the world bank names use some form of punctuation. Save the resulting data frame with a new name and show only those rows. There should be 17.
+
+-   Note: the accent circumflex "\^" does not count as punctuation but as part of a letter as it is a [diacritical mark](https://en.wikipedia.org/wiki/Diacritic).
+
+
+5.  Start with the data frame with the 17 countries found in 4. Create a new column in the data frame where the values are created as follows.
+
+- Use {stringr} functions with regex to:
+
+a.  Replace all of the punctuation **or** white spaces in `wb_name` values, with an underscore, `_`, and then,\
+b.  Remove any trailing underscores, `_`, and then,\
+c.  Replace any double underscores, `__`, with a single `_`.\
+d.  Use an argument of `mutate()` to ensure the new column is **right after `country`**
+
+-   The second row value should look like `Congo_Dem_Rep`.
+-   There is no need to do the replacements in a single step; three steps is fine.
+
+
+
+# Global Protest Tracker
+
+1.  Use a function from the {readxl} package to load the `Global Protest Tracker.xlsx` excel file. It has data from the Carnegie Foundation Endowment for Peace [Global Protest Tracker](https://carnegieendowment.org/features/global-protest-tracker?lang=en) on 715 protests from around the world. Go to the website and click on the `About the tracker` inset pop up on the right to get a pop-up window where you can look at definitions for select variables.
+    -   Review the data and use an argument for the function to ensure the data loads correctly with 715 rows and 21 columns.
+    -   Use `glimpse()` to see a summary of the data.
+    
+
+```{r}
+
+#install.packages("readxl")
+library(readxl)
+
+global_protest_tracker <- read_excel("../data/Global Protest Tracker.xlsx", 
+                                     skip = 3, 
+                                     n_max = 719)
+glimpse(global_protest_tracker)
+
+```
+
+
+2.  Clean Data
+a.  Convert `Start Date` to class `Date` by combining {stringr} and {lubridate} functions. Assume the protests start on the first of the month. Save to a data frame with a new name.
+
+
+b.  Note the warning that one row failed to parse. Find the row and determine the reason it did not parse. Adjust your code so that all rows parse properly. Hint: Use `dplyr::case_when()` to isolate and adjust the one row so it matches the others and then parse all rows again.
+    -   Save to original data frame
+    -   Show the number of non-`NA` values in `Start Date`. It should be 715.
+    -   Use an R command to remove the data frame from part 2.a from the Global Environment.
+
+
+```{r}
+
+global_protest_tracker %>% 
+  mutate(start_date_char = if_else(`Start Date` == "Mar-24", "24-Mar", `Start Date`),
+         start_date = parse_date_time(start_date_char, "ym")
+         ) -> gpt_newfile
+  
+ glimpse(gpt_newfile)
+  
+```
+
+
+c.  Convert `Peak Size` to numeric. Assume the values are equalities instead of `<` or `.` and convert `"Tens of thousands"` to `"20000"` and `"Thousands"` to `"3000"`. Save to the data frame.
+
+-   DATA 613 students must use regex with {stringr} detect and replace functions to convert values of all single digit million to the correct value and one regex to convert all fractional million rows (e.g. `"1.2 million"`) to their correct values. Consider using `?` and groups.
+-   Hint: Use `dplyr::case_when()` to identify the five cases (`"Thousands"`, `"Tens of thousands"`, single digit million, fractional millions, and `"unknown"`, plus the `.default =` `Peak Size` and for each case, use the right hand side formula to convert the values to the indicated character value, e.g., `"1.2 million"` becomes `"1,200,000"`. Then use a {readr} function to convert `Peak Size` from character to numeric.
+
+
+```{r}
+
+gpt_newfile %>% 
+  mutate(peak_size = if_else(`Peak Size` == "Tens of thousands", "20000",
+                     if_else(`Peak Size` == "Thousands", "3000",
+                     if_else(`Peak Size` == "Unknown", "", `Peak Size`
+                             )))) %>% 
+  
+  mutate(peak_size = str_replace_all(peak_size, "^(>|<)", ""),
+         peak_size = str_replace_all(peak_size, " million", "00,000"),
+         peak_size = str_replace_all(peak_size, ",+", ""),
+         peak_size = str_replace_all(peak_size, "\\.", "")
+         ) %>% 
+
+  mutate(peak_size_claen = str_trim(peak_size, side = "both"),
+         peak_size_num = parse_number(peak_size_claen) 
+        ) -> gpt_newfile_clean
+
+glimpse(gpt_newfile_clean)
+
+```
+
+d.  Filter the data frame to rows with `Peak Size` of 3000, 20000, 1000000, 1200000, and 1500000. Show only the `Country`, `Protest Name` and `Peak Size` in descending order of `Peak Size` and then ascending by `Country`. There should be 30 rows.
+
+```{r}
+
+gpt_newfile_clean %>% 
+  select(`Country`, `Protest Name`, peak_size_num) %>% 
+  filter(peak_size_num == 3000 | peak_size_num == 20000 | peak_size_num == 1000000 | peak_size_num == 1200000 | peak_size_num == 1500000) %>% 
+  arrange(desc(peak_size_num))
+
+
+```
+
+
+
+e.  Convert Columns to Type Logical. Nine columns have only `X` and `NA` as values. What distinguishes these columns from the others is the large number of `NAs` in them.
+
+-   Create the following two custom functions.
+-   Use these functions (with `dplyr::across()` and `tidyselect::where()`) to mutate the columns to logical. Save the data frame.
+-   `glimpse()` the data frame to confirm the 9 logical columns.
+
+```{r}
+
+make_logical <- function(vec) as.logical(if_else(is.na(vec), 0, 1))
+many_nas <- function(vec) sum(is.na(vec)) > 10
+
+gpt_newfile_clean %>% 
+  mutate(across(contains(c("protests", "motivation", "significant", "protesting", "government", "Coronavirus")), make_logical)) -> gpt_with_logicals
+
+glimpse(gpt_with_logicals)
+  
+```
+
+
+f.  The `Duration` variable uses multiple units of measure and some rows have multiple entries. To provide a consistent unit of measure for the length of a protest, create a variable for the number of days of a protest.
+
+- For our purposes we will create `protest_days` as an approximation as the data is imprecise. Use the following guidelines.
+  -   Only convert the first time in any Duration.
+  -   Include fractional years.
+  -     Use conversion factors: a week is 7 days, a month is 30 days, and a year is 365 days.
+  -   Assume all Active protests, to include sporadic or intermittent, are continuously active from their start date to `today()`.
+
+1.  As a first step, create and test a single regex for extracting numbers that are one digit, two consecutive digits, or two digits separated by a decimal point and assign it the variable name `my_regex`.
+
+Test `my_regex` on 1, 11, and 1.1
+
+```{r}
+
+# str_extract("1 m", my_regex)
+# str_extract("11 m", my_regex)
+# str_extract("1.1 m", my_regex)
+
+num_vector = c(1, 11, 1.1)
+
+my_regex_integers <- "(\\d+)"
+my_regex_int_with_dec <- "(\\d{1}\\.\\d{1})|(\\d+)"
+
+str_extract("1 m", my_regex_integers)
+str_extract("11 m", my_regex_integers)
+str_extract("1.1 m", my_regex_int_with_dec)
+
+```
+
+
+2.  The following snippets of code can be used to solve this problem. However, they are in the wrong order and are missing the line to calculate the days for Active protests.
+
+-   Hint: When using `dplyr::case_when()`, *ensure the cases are in the correct order* since "*Each case is evaluated sequentially and the first match for each element determines the corresponding value in the output vector.*"
+-   Hint: It may help when troubleshooting to use `select(Country,`Start Date`, Duration) |>` so it is easier to see the results, but delete or comment out before saving to the data frame so you do not lose any variables.
+
+
+```{r}
+#| name: mis-ordered code
+#| eval: false
+
+# select(Country, `Start Date`, Duration) |>
+# mutate(protest_days = case_when(
+# mutate(protest_days = if_else(
+# str_detect(Duration, "Active") ~ -999,
+# str_detect(Duration, "year") ~ 
+# protestsr |>
+# )) 
+# 365 * parse_number(str_extract(Duration, paste0(my_regex, " year"))),
+# str_detect(Duration, "day") ~
+# 30 * parse_number(str_extract(Duration, paste0(my_regex, " month"))),
+# str_detect(Duration, "week") ~ 
+# 7 * parse_number(str_extract(Duration, paste0(my_regex, " week"))),
+# str_detect(Duration, "month") ~
+# parse_number(str_extract(Duration, paste0(my_regex, " day"))),
+# ), .after = Duration) |>
+# .default = NA
+```
+
+
+```{r}
+
+my_regex_integers <- "(\\d+)"
+my_regex_int_with_dec <- "(\\d{1}\\.\\d{1})|(\\d+)"
+my_regex_dtnames <- "(months|month|weeks|week|years|year|days|day|Active)"
+
+gpt_with_logicals %>% 
+  #select(Country, Duration, start_date) %>% 
+  mutate(protest_ints_with_dec = parse_number(str_extract(Duration, my_regex_int_with_dec)),
+         protest_dtperiods = str_extract(Duration, my_regex_dtnames),
+         N_days_active_today = parse_number(str_extract(difftime(Sys.Date(), start_date, units = "days"), my_regex_integers))
+         ) %>% 
+  
+  mutate(protest_days = if_else(str_detect(protest_dtperiods, "Active"), N_days_active_today,
+                        if_else(str_detect(protest_dtperiods, "day"), protest_ints_with_dec,
+                        if_else(str_detect(protest_dtperiods, "week"), protest_ints_with_dec*7,
+                        if_else(str_detect(protest_dtperiods, "month"), protest_ints_with_dec*30,
+                        if_else(str_detect(protest_dtperiods, "year"), protest_ints_with_dec*365, 0)))))
+         ) -> gpt_with_protest_days
+glimpse(gpt_with_protest_days)
+
+```
+
+
+g.  Show the number of `NA`s and the sum of the `protest_days`. The results should be 0 and a minimum of 63,440.5.
+
+```{r}
+
+gpt_with_protest_days %>% 
+  summarise(sum_protest_days = sum(protest_days))
+
+```
+
+
+-   Filter out Active protests and show the top 30 longest protests. Just show `Country`,`Start Date`, and `protest_days`.
+
+```{r}
+
+gpt_with_protest_days %>%
+  filter(protest_dtperiods != "Active") %>% 
+  arrange(desc(protest_days)) %>%
+  select(`Country`, start_date, protest_days) %>% 
+  slice_max(protest_days, n=30) 
+
+```
+
+
+
+h.  Extra Credit. There are at least 30 protests that have two or more values in `Duration` or have become active after stopping. The code below works as is but you need to fix the six incorrect regex  and one other incorrect element in the code below to update those protests that have two values for `Duration` but have not gone active while retaining the values you created earlier.
+
+```{r}
+#| name: create-protest_days-more - mistakes
+
+# protestsr |>
+#   #select(Country, `Start Date`, Duration) |>
+#   mutate(protest_days = case_when(
+# 
+#     str_detect(Duration, "year") & str_detect(Duration, "month") ~
+#       365 * parse_number(str_extract(Duration, paste0(my_regex, "year"))) +
+#        30 * parse_number(str_extract(Duration, paste0(my_regex, " month"))),
+# 
+#     str_detect(Duration, paste0(my_regex, " month")) &
+#     str_detect(Duration, paste0(";", my_regex, " month")) ~
+#       30 * parse_number(str_extract(Duration, paste0(my_regex, " month"))) +
+#       30 * parse_number(str_extract(Duration, paste0("; ", my_regex, " month"))),
+# 
+#     str_detect(Duration, "month") & str_detect(Duration, "week") ~
+#       30 * parse_number(str_extract(Duration, paste0(my_regex, " month"))) +
+#        7 * parse_number(str_extract(Duration, paste0(my_regex, " week"))),
+# 
+#      str_detect(Duration, "month") & str_detect(Duration, "day") ~
+#       30 * parse_number(str_extract(Duration, paste0(my_regex, " month"))) +
+#        1 * parse_number(str_extract(Duration, paste0(my_regex, "day"))),
+# 
+#      str_detect(Duration, paste0("^", my_regex, " week")) &
+#      str_detect(Duration, paste0(";", my_regex, " week")) ~
+#        7 * parse_number(str_extract(Duration, paste0("^", my_regex, " week"))) +
+#        7 * parse_number(str_extract(Duration, paste0("; ", my_regex, " week"))),
+# 
+#      str_detect(Duration, "week") & str_detect(Duration, "day") ~
+#        7 * parse_number(str_extract(Duration, paste0(my_regex, " week"))) +
+#        1 * parse_number(str_extract(Duration, paste0(my_regex, "day"))),
+# 
+#      str_detect(Duration, paste0("^", my_regex, " day")) & 
+#      str_detect(Duration, paste0("; ", my_regex, " day")) ~
+#       1 * parse_number(str_extract(Duration, paste0("^", my_regex, " day"))) +
+#       1 * parse_number(str_extract(Duration, paste0(": ", my_regex, " day"))),
+#     
+#      .default = NA
+#     
+  # )) #->. #uncomment this line and the next when you have fixed all the mistakes 
+  # protestsr
+  
+```
+
+-   Show the sum of the `protest_days`. It should be 0 and a minimum of 65,452. Use `glimpse()` on the data.
+
+
+
+i.  Use {forcats} functions to collapse the levels of `Size category` to remove the spelling errors while converting to a factor. Then change the levels to be in increasing numerical order. Your results should look like the following.
+
+```{r}
+
+gpt_with_protest_days %>% 
+  mutate(size_cat_ft = as.factor(`Size category`), 
+         size_cat_ft = fct_recode(size_cat_ft,
+                      "Thousands"             = "Thosuands",
+                      "Thousands"             = "Thousads",
+                      "Hundreds of thousands" = "Huundreds of thousands",
+                      "Hundreds of thousands" = "Hundreds of of thousands")) %>% 
+
+    mutate(size_cat_ft = fct_relevel(size_cat_ft, c("Tens", "Dozens", "Hundreds", "Thousands", "Tens of thousands", "Hundreds of thousands", "Over 1 million", "Millions", "Tens of millions", "Unknown")
+                                   )
+         ) -> gpt_with_pdays_size_fcts
+
+gpt_with_pdays_size_fcts %>% 
+  group_by(size_cat_ft) %>% 
+  count()
+
+```
+
+
+j.  Select `Peak Size` and `Size Category`, arrange by `Size Category` and `view()` the data. (Be sure to leave the chunk option `#| eval: false` in place or comment out the `view()` before rendering.) Comment on what you observe and what you would recommend as next steps.
+
+```{r}
+
+#| eval: false
+#| echo: true
+
+gpt_with_pdays_size_fcts %>% 
+  select(peak_size_num, size_cat_ft) %>% 
+  arrange(size_cat_ft) -> gpt_size_fcts2
+
+view(gpt_size_fcts2)
+
+gpt_size_fcts2
+
+```
+
+- **Answer:** The values don't match and, in the majority of times, are not even within the same size category. I would recommend choosing one of the variables to work with and possibly that the institution start recording one variable based on the other so that they would agree.
+
+
+3.  Is there a strong association between `Peak Size` and the length of the protest in days for protests with a significant outcome?
+a.  Create a plot that looks as close as possible to one of the following.
+b.  Interpret the plot to answer the question.
+
+```{r}
+
+ggplot(gpt_with_pdays_size_fcts, mapping = aes(x = protest_days,
+                                               y = peak_size_num,
+                                               color = `Protests with a significant outcome`)) +
+geom_point() +
+
+scale_x_log10() +  
+scale_y_log10() +  
+  
+geom_smooth(se = FALSE, linetype = "solid") +
+
+xlab("Length of Protest in Days") +
+ylab("Peak Size") +
+
+ggtitle(label = "Peak Size of Protests with Significant Outcome Versus the Length of the Protest",
+        subtitle = "Log Scales") +
+
+labs(caption = "Data from the Carnegie Foundation Endowment for Peace Global Protest Tracker") +
+theme(plot.title = element_text(hjust = 0.5, size = 11),
+      plot.subtitle = element_text(size = 10, hjust = 0.5)
+    )
+
+```
+- **Answer:** Yes, the plot shows a positive relationship between peak size of a protest and its duration in days for the presence of the indicator "Protests with a Significant Outcome".
+
+
+4.  Develop your own question and a plot to answer it. Create the plot and interpret the plot to answer your question. Extra credit for plots with complete labeling.
+
+```{r}
+
+ggplot(gpt_with_pdays_size_fcts, mapping = aes(x = protest_days,
+                                               y = peak_size_num,
+                                               color = `Long protests (more than 3 months)`)) +
+geom_point() +
+
+scale_x_log10() +  
+scale_y_log10() +  
+  
+geom_smooth(se = FALSE, linetype = "solid") +
+
+xlab("Length of Protest in Days") +
+ylab("Peak Size") +
+
+ggtitle(label = "Peak Size of Protests with Coronavirus-related Meanings Versus the Length of the Protest",
+      subtitle = "Log Scales") +
+
+labs(caption = "Data from the Carnegie Foundation Endowment for Peace Global Protest Tracker") +
+theme(plot.title = element_text(hjust = 0.5, size = 10),
+      plot.subtitle = element_text(size = 10, hjust = 0.5)
+    )
+
+```
+- **Answer:** For instance, the plot indicates that protests that lasted more than 3 months reached higher pick sizes and duration in days than shorter protests. The relationship between a protest peak size and number of days is somewhat positive.

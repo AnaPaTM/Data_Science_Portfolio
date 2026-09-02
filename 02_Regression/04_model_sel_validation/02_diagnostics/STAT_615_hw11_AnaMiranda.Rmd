@@ -1,0 +1,210 @@
+---
+title: "DATA 615 - Regression: Homework - 11"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+library(tidyverse)
+library(ggthemes)
+library(leaps)
+library(car) # vif() function
+library(lmtest)
+library(MASS) # lm.ridge() function
+library(knitr)
+```
+
+
+\newpage
+
+# Problem 11.7 (skip b) Machine Speed. (p. 473. a-g (-b), 30 pts)
+
+* In part (d), note that the predicted (fitted) values from "regressing the squared residuals against X" are the estimated variance of the residuals. The estimated weight is 1/(estimated variance). If you get a negative value for the estimated variance, convert it to a positive value by taking its absolute value.
+
+\bigskip
+\bigskip
+
+Machine speed. The number of defective items produced by a machine (Y) is known to be linearly related to the speed setting of the machine (X). The data below were collected from recent quality control records.
+
+\bigskip
+
+```{r}
+ms <- read.table("./data/CH11PR07.txt", header = F)
+colnames(ms) <- c("Y_def_items", "X_speed_set")
+glimpse(ms)
+```
+
+\bigskip
+
+```{r}
+summary(ms)
+```
+\newpage
+
+```{r}
+plot(Y_def_items ~ X_speed_set, data = ms)
+lines(lowess(ms$X_speed_set, ms$Y_def_items), lty = 2)
+```
+
+\newpage
+
+## a. Fit a linear regression function by ordinary least squares, obtain the residuals, and plot the residuals against X. What does the residual plot suggest? {-}
+
+```{r}
+ms_ols <- lm(Y_def_items ~ X_speed_set, data = ms)
+ms_ols
+ms$res1 <- ms_ols$residuals
+```
+
+\bigskip
+\bigskip
+
+**The estimated regression function by OLS is:**
+
+$$\hat{Y} = -5.7500 + 0.1875$$
+\bigskip
+
+**The residuals:**
+
+```{r, echo = FALSE}
+kable(ms$res1, col.names = "OLS Residuals", align = "c")
+```
+
+
+\bigskip
+
+```{r}
+plot(res1 ~ X_speed_set, data = ms)
+```
+
+\bigskip
+
+**Findings:** The residual plot suggests that the variance of the error terms increases as X increases and that the assumption of constant variance of the residuals is not valid.
+
+
+\newpage
+
+## b. skipped. {-}
+
+
+
+\newpage
+
+## c. Plot the squared residuals against X. What does the plot suggest about the relation between the variance of the error term and X? {-}
+
+```{r}
+plot(res1^2 ~ X_speed_set, data = ms)
+lines(lowess(ms$res1^2 ~ ms$X_speed_set), col = 2)
+```
+
+\bigskip
+
+**Findings:** The plot indicates the variance is not constant and it increases as speed setting increases.
+
+
+\newpage
+
+## d. Estimate the variance function by regressing the squared residuals against X, and then calculate the estimated weight for each case using (11.16b). {-}
+
+```{r}
+var_ols = lm(res1^2 ~ X_speed_set, data = ms)
+var_ols
+```
+
+\bigskip
+
+
+**The estimated variance function is:**
+
+$$\hat{v} = -180.083 + 1.244X$$
+
+\bigskip
+
+**Calculating the estimated weights:**
+
+```{r}
+ms$hat_var <- var_ols$fitted.values
+ms$w1 <- 1 / (abs(ms$hat_var))
+kable(ms)
+```
+
+
+\newpage
+
+## e. Using the estimated weights, obtain the weighted least squares estimates of Beta 0 and Beta 1. Are the weighted least squares estimates similar to the ones obtained with ordinary least squares in part (a)? {-}
+
+
+```{r}
+ms_weighted_ls <- lm(Y_def_items ~ X_speed_set, weights = w1, data = ms)
+ms_weighted_ls
+```
+\bigskip
+
+**The estimated weighted function is:**
+
+$$\hat{Y} = -6.2332 + 0.1891X$$
+
+\bigskip
+
+**Findings:** The weighted least squares estimates for $\beta_0$ and $\beta_1$ are -6.2332 and 0.1891, respectively, and they are different from the ordinary least squares estimates obtained without considering the weights.
+
+
+\newpage
+
+## f. Compare the estimated standard deviations of the weighted least squares estimates b_wo and b_W1 in part (e) with those for the ordinary least squares estimates in part (a). What do you find? {-}
+
+```{r}
+summary(ms_ols)
+summary(ms_weighted_ls)
+```
+\bigskip
+
+**Findings:** The standard deviation for the ordinary least squares for coefficients $\beta_0$ and $\beta_1$ are: 16.73052 and 0.05381, respectively. While the standard deviation for the **weighted** least squares for coefficients $\beta_0$ and $\beta_1$ are: 13.16843 and 0.05056, respectively. It's noticeable that the standard deviation for both estimated coefficients with weighted least squares are smaller and that is because the weighted least squares estimates are unbiased and more consist compared with the results from the OLS regression.
+
+
+\newpage
+
+## g. Iterate the steps in parts (d) and (e) one more time. Is there a substantial change in the estimated regression coefficients? If so, what should you do? {-}
+
+
+```{r}
+ms$resi2 <- ms_weighted_ls$residuals
+ms$hat_var2 <- lm(resi2^2 ~ X_speed_set, data = ms)$fitted.values
+ms$w2 <- 1 / abs(ms$hat_var2)
+kable(ms)
+```
+\bigskip
+
+```{r}
+ms_weighted_ls2 <- lm(Y_def_items ~ X_speed_set, weights = w2, data = ms)
+ms_weighted_ls2
+```
+\bigskip
+
+**The estimated second interaction weighted function is:**
+
+$$\hat{Y} = -6.2335 + 0.1891X$$
+
+\bigskip
+
+**Findings:** With the second iteration, the weighted least squares estimates for $\beta_0$ and $\beta_1$ are -6.2335 and 0.1891, respectively. The estimates didn't change much from the first interaction and that suggests that no more iterations is needed.
+
+
+\bigskip
+\bigskip
+
+
+\begin{center}
+This is the end of Homework 11.
+\end{center}
+

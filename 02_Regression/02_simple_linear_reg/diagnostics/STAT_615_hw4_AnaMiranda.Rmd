@@ -1,0 +1,253 @@
+---
+title: "DATA 615 - Regression: Homework - 4"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(patchwork)
+```
+
+
+\newpage
+
+## Reading in the data. {.unnumbered} 
+
+Variables description for the considered data file:
+
+`time`: Y is the total number of minutes spent by the service person
+
+`copiers`: X is the number of copiers serviced
+
+`copiers_age`: X2 is the mean operational age of copiers serviced on the call (in months).
+
+`workers_experience`: X3 is number of years of experience of the service person making the call.
+
+
+\bigskip
+
+```{r}
+cm <- read.table("./data/CH03PR04.txt", header = F)
+colnames(cm) <- c("time", "copiers", "copiers_age", "workers_experience")
+glimpse(cm)
+
+summary(cm)
+```
+
+## Estimating the regression function: {.unnumbered}
+
+```{r}
+cm_SLR <- lm(data = cm, time ~ copiers)
+summary(cm_SLR)
+```
+\bigskip
+
+* The estimated regression function is:  {.unnumbered}
+
+$$\widehat{time} = -0.5802 + 15.0352(copiers)$$
+
+\newpage
+
+# Reading assignment. Use Handout2_SLR_b.pdf, p. 4 as a summary, and read Ch.2.3, Ch.2.10. (They may appear in future class discussions.)
+
+* Done.
+
+\bigskip
+
+# Problem 3.4 (c, d, h, plus revised part e below). Copier Maintenance (p. 147, 20pts)
+
+## c) Prepare a stem-and-leaf plot of the residuals. Are there any noteworthy features in this plot? {.unnumbered}
+
+* In part c, instead of stem-and-leaf plot, you can use a histogram for the residuals. Be sure to comment on the findings from the plot.
+
+```{r}
+hist(cm_SLR$residuals)
+```
+
+- Findings: The residuals appear to be normally distributed and with no visible outlines.
+
+
+## d) Prepare residual plots of residuals versus Y^ and residuals versus Xi on separate graphs. Do these plots provide the same information? What departures from regression model (2.1) can be studied from these plots? State your findings. {.unnumbered}
+
+
+```{r}
+
+par(mfrow = c(1, 2))
+
+plot(cm_SLR$fitted.values, cm_SLR$residuals)
+abline(0, 0)
+
+plot(cm$copiers, cm_SLR$residuals)
+abline(0, 0)
+
+```
+
+* Findings: Yes, the plots are identical and provide the same information: that's because the SLR is linear function of X. The residuals seem to be evenly distributed around zero and it might suggest the presence of a few outliers on the right bottom corner of the graph.
+
+
+
+## e) Prepare a Normal Q-Q plot for the residuals and comment. Use statistical software to conduct test(s) to check the normality assumption of the residuals at aplha = 0.10. {.unnumbered}
+
+
+* Additional notes about the tests for Normality:
+
+  - Both the Shapiro-Wilk Test and the Kolmogorov-Smirnov Test for Normality need that assumption that the data (in this case, the residuals) have equal variance. Between these two tests, if there is no preference in your own research/study field, I recommend the Shapiro-Wilk Test because it often has higher power than the Kolmogorov-Smirnov Test, especially when the sample size is relatively small. When the sample size is small, however, the statistical power of either test is low.
+
+
+```{r}
+qqnorm(cm_SLR$residuals)
+qqline(cm_SLR$residuals)
+```
+
+* Findings: The QQ-plot for the residuals does not present any visible problems and the dots seem to lie randomly along the reference line as expected. A few dots seem to lie a bit further from the reference line around both extremities, though.
+
+
+```{r}
+shapiro.test(cm_SLR$residuals)
+```
+The Shapiro-Wilk Test computed a p-value = 0.4614 and much larger than the significance level, alpha = 0.10, considered for this analysis. Therefore, Ho is not rejected and the assumption that the residuals are normally distributed is valid.
+
+
+
+## h) Information is given below on two variables not included in the regression model, namely, mean operational age of copiers serviced on the call (X2 in months) and years of experience of the service person making the call (X3). Plot the residuals against X2 and X3 on separate graphs to ascertain whether the model can be improved by including either or both of these variables. What do you conclude? {.unnumbered}
+
+* Hint/Reminder for (h). When the residual is plotted against a new predictor:
+  - If there is no special pattern other than a “horizontal box”, it suggests that this new predictor will not help improve the model.
+  - If there is any pattern, such as linear, curved-line, etc, it suggests that this new predictor can help improve the model. Hence, we’ll consider including the predictor in the model.
+
+
+```{r}
+
+par(mfrow = c(1, 2))
+
+plot(cm$copiers_age, cm_SLR$residuals)
+abline(0, 0)
+
+plot(cm$workers_experience, cm_SLR$residuals)
+abline(0, 0)
+
+```
+
+* Findings:
+
+  - The plot of the residuals vs. `copiers' age` seem to suggest a positive linear correlation between them. Therefore, this variable would improve the model if added to the model.
+  - On the other hand, the plot of the residuals vs. `worker's experience` is just scatted around zero and with no evident pattern. Therefore, this variable would not help if added to the model.
+  
+
+
+# Recall the ANOVA table for the Copier Maintenance data with SLR model. 
+
+Use the facts that: (a) SSPE = 2797.658, and (b) the predictor (Copier) has 10 distinct values, to further develop the ANOVA table (above) so that we can conduct F-test for lack-of-fit. State the hypothesis, rejection rule and your conclusion for the test (at Type I error rate = 0.05). Then, use statistical software (see examples in Lab 2. SPSS users see item 4.c on p. 1-2. R users see item 4.3 on p. 7-8.) (15 pts: 5 for calculation, 5 for software, 5 for test and conclusion.)
+
+
+### The ANOVA table  {.unnumbered}
+
+```{r}
+anova(cm_SLR)
+```
+
+### Developing the ANOVA further in order to conduct the F-test for lack-of-Fit: {.unnumbered}
+
+```{r}
+
+SSE = 3416
+SSPE = 2797.658
+
+SSLE <- (SSE - SSPE)
+SSLE
+
+df_PE = 45 - 10
+df_PE
+
+df_LE = 10 - 2
+df_LE
+
+F_test_LF <- (SSLE/df_LE) / (SSPE/df_PE)
+F_test_LF
+
+F_critic <- qf(p = 0.05, df1 = df_LE, df2 = df_PE, lower.tail = FALSE)
+F_critic
+
+```
+
+* Hypothesis:
+
+  - Ho: E(Y) = Bo + B1X
+  - Ha: E(Y) not equal Bo + B1X
+
+F observed: $F_{LF} = 0.9676$
+
+$p-{value} = P(F_{df1 = 8, df2=35} > 0.9676) = 0.4766$
+
+
+* The decision rules are:
+
+  - If p_value < $\alpha = 0.05$, reject Ho
+  - If p_value > $\alpha = 0.05$, do not reject Ho
+  
+Since a p_value = 0.4766 is a lot larger than 0.05, there's no evidence to reject Ho. Therefore, the linearity assumption of the model holds and it's a valid assumption.
+
+
+\bigskip
+
+# Start Problem 3.17 Sales growth early. This problem will be in HW 5, and HW 5 has more questions than previous assignments.
+
+## Sales growth. A marketing researcher studied annual sales of a product that had been introduced 10 years ago. The data are as follows, where X is the year (coded) and Y is sales in thousands of units:
+
+```{r}
+
+sg <- read.table("./data/CH03PR17.txt", header = F)
+colnames(sg) <- c("sales", "year")
+glimpse(sg)
+
+summary(sg)
+
+```
+
+
+### a) Prepare a scatter plot of the data. Does a linear relation appear adequate here? {.unnumbered}
+
+
+```{r}
+
+plot(sales ~ year, data = sg)
+
+```
+
+```{r}
+
+sg_SLR = lm(data = sg, sales ~ year)
+
+summary(sg_SLR)
+
+```
+
+```{r}
+
+plot(sales ~ year, data = sg)
+abline(sg_SLR$coefficients)
+
+```
+
+
+### b) Use the Box-Cox procedure and standardization (3.36) to find an appropriate power transformation of Y. Evaluate SSE for A = .3, .4, .5, .6, .7. What transformation of Y is suggested? {.unnumbered}
+
+### c) Use the transformation Y' = ..JY and obtain the estimated linear regression function for the transformed data. {.unnumbered}
+
+### d) Plot the estimated regression line and the transformed data. Does the regression line appear to be a good fit to the transformed data? {.unnumbered}
+
+### e) Obtain the residuals and plot them against the fitted values. Also prepare a normal probabili ty plot. What do your plots show? {.unnumbered}
+
+### f) Express the estimated regression function in the original units. {.unnumbered}

@@ -1,0 +1,444 @@
+---
+title: 'DATA-413/613 Homework 06: Web Scraping'
+author: Ana Miranda
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+execute: 
+  warning: false
+---
+
+# IMDB List of Best Foreign Films
+
+Use {tidyverse} and {rvest} packages in solving this problem.
+
+```{r}
+#| eval: true
+#| message: false
+library(tidyverse)
+library(rvest)
+```
+
+IMDB has a list of the [Top 100 Best Foreign Films](https://www.imdb.com/list/ls062615147/). For each movie, we want to get the following data (where it exists) on the webpage into a tibble.
+
+-   Number, Title, Year, Length, Rating, Star Rating, Votes, Metascore, Plot Summary, Director, Stars, and Country
+
+1.  Load the historical `imdb_html.html` file for this page from the `data_raw` directory using a relative path.
+
+```{r}
+
+my_path <- "../data_raw/imdb_html.html"
+
+imdb_movie_obj <- read_html(my_path)
+class(imdb_movie_obj)
+
+```
+
+2.  The CSS Selector for the "movie" element is `".ipc-metadata-list .ipc-metadata-list-summary-item"`.
+a.  Use it to scrape all the data for each movie at once.
+    -   Save the result with the name `movie_data`. You should get a list with 25 elements, one for each movie.
+    -   Show the length of the list.
+    
+```{r}
+
+movie_data <- html_elements(imdb_movie_obj, 
+                            css = ".ipc-metadata-list .ipc-metadata-list-summary-item")
+
+length(movie_data)
+
+```
+
+b.  Insert a screen shot of the Developer tools showing the Inspected element. It should look something like this (but will vary with your browser and the date of your screen shot).
+
+![Developer Tool Screenshot](../images/css_image1.png)
+
+
+3.  Create a function called `get_text` with an argument for CSS values. The function should use the just-created `movie_data` list and return the text associated with the elements of interest. The function's steps should start with the `movie-data` object, pipe to a function to scrape the elements based on the input CSS argument, and extract the text from those elements as a character vector.
+
+```{r}
+
+get_text <- function(my_obj, my_css){
+    html_element(my_obj, my_css) %>% 
+    html_text2()
+}
+
+```
+
+
+4.  We will use `get_text()` as part of a strategy to scrape the elements of interest from `movie_data.`
+
+-   The new DOM combines some formerly distinct elements into groups and eliminates their separate CSS selectors.
+-   It is also true that not every element exists for a movie. Because the DOM uses generic classes for the list elements in some groups, it is not straightforward to figure out which scraped data goes with which movie. As an example, there are 25 movies but only 18 metascores.
+-   However, we can scrape at the grouped class level and then figure out which data belongs where during cleaning.
+-   We will scrape both the groups and the individual elements in cases where some elements in the group have their own class as it will simplify cleaning.
+
+We are interested in the following CSS selectors
+
+-   ".ipc-title\_\_text", \# number and title
+-   ".dli-title-metadata", \# year, Run Time, Rating
+-   ".ipc-rating-star--rating", \# IMDB stars rating
+-   ".ipc-rating-star--voteCount", \# votes"
+-   ".kcRAsW", \# stars-votes-metascore group
+-   " .dli-plot-container .ipc-html-content-inner-div", \# plot summary
+-   ".Cxrmk", \# plot-directors-star group
+-   ".brndVc .ipc-html-content-inner-div" \# Country
+
+a.  Create a vector called `my_vars` with a variable name for each of the elements of interest.
+
+b.  Create a vector called `my_css` with the corresponding CSS selector for each element of interest.
+    -   Be sure to put them in the correct order so they align to the order of the `my_vars` variable names.
+
+c.  Use `map2()` with `my_vars` and `my_css` to scrape each element of interest and combine into a single a data frame called `movies_df`.
+-   Consider a strategy like the following that requires very few lines of code.
+    -   Create an anonymous function with two arguments: one for the element name and one for the css.
+    -   The function should first scrape the element using your function and the css argument.
+    -   It should transform that vector into a tibble using `tibble()` while using the `.name_repair=` argument with the "purrR" anonymous function operator `~` for the vector of names.
+    -   Once all the elements are scraped, you should have a list of length 8 where each element is a single-variable data frame with 25 rows.
+    -   You have scraped the data of interest and ready to tidy it.
+    -   Use a {purrr} `list_*` function to transform the `map2()` list output into a single data frame by binding the columns together.
+-   Hint: as a build-and-test strategy, solve in steps working "inside-out": - Make sure your `get_text()` scrape function works with a `css` argument. - Put it inside `tibble()` with the `.names_repair =` argument for the variable names. - Convert to an anonymous function with two arguments and test with single-value arguments. - Put inside `map2()` with the vectors you created in part b. - Pipe to a `purrr::list_*()` function to combine into a single data frame and save as `movies_df`.
+
+d.  Use `glimpse()` to check your data frame is tidy with 8 columns and 25 rows. It should look like the following:
+
+
+```{r}
+
+imdb_movie_elements <- html_elements(imdb_movie_obj, css = ".dli-parent")
+
+tibble(num_title = get_text(imdb_movie_elements, ".ipc-title__text"),
+       year_run_rating = get_text(imdb_movie_elements, ".dli-title-metadata"),
+       Star_Rating = get_text(imdb_movie_elements, ".ipc-rating-star--rating"),
+       Votes = get_text(imdb_movie_elements, ".ipc-rating-star--voteCount"),
+       stars_group = get_text(imdb_movie_elements, ".kcRAsW"),
+       plot_summary = get_text(imdb_movie_elements, ".dli-plot-container .ipc-html-content-inner-div"),
+       plot_dirs_stars = get_text(imdb_movie_elements, ".Cxrmk"),
+       country = get_text(imdb_movie_elements, ".brndVc .ipc-html-content-inner-div")
+      ) -> movies_df
+glimpse(movies_df)
+
+```
+
+5.  Clean the data.
+a.  Fix `number-title`. Use a {tidyr} to separate `number_title` by a delimiter into two columns called `Rank` and `Title`. Convert `Rank` to a number. Save the `movies_df` data frame and glimpse it.
+b.  Fix `year_run_rating`.
+-   Use a {tidyr} function to separate `year_run_rating` using regex into two columns called `Year` and `run_rating`. Hint: Getting the year is straight-forward. Consider using the "preceded by" look around to get the rest.
+-   Convert `Year` to a number.
+-   Use a {tidyr} function to separate `run_rating` using regex into two columns called `Run_time` and `Rating`. Hint: Look at the data to see a pattern in how all times end. Consider using the "preceded by" look around to get the rest. For any empty values, convert to `NA`.
+-   Convert Run_time into minutes as a number. Hint: use string_extract with regex and parse_number and add 60\* hours and minutes.
+
+Save the `movies_df` data frame and glimpse it.
+
+
+```{r}
+
+movies_df %>% 
+  separate_wider_delim(num_title, delim = ". ", 
+                       names = c("Rank", "Title")
+                       ) %>% 
+
+  mutate(Rank = parse_number(Rank),
+         Year = str_sub(year_run_rating, start = 3, end = 6),
+         Run_Time = str_extract(year_run_rating, "(\\d{1}h \\d+m)|(\\d{1}h)"),
+         Rating = if_else(str_detect(year_run_rating, "m"), 
+                          str_extract(year_run_rating, "(?<=m)(.*)$"), str_extract(year_run_rating, "(?<=h)(.*)$")),
+         Rating = str_trim(Rating),
+         Year = parse_number(Year)
+        ) -> movies_df1
+glimpse(movies_df1)
+
+```
+
+
+c.  Fix Star_Rating, Votes and Metascore.
+-   Convert `Star_Rating` to a number
+-   Convert `Votes` to a number.
+-   Extract metascore and convert to a number that appears after `Votes`.
+-   Remove `stars_votes_metascroe` from the data frame.
+-   Save the data frame and glimpse it.
+
+
+```{r}
+
+movies_df1 %>% 
+  mutate (Star_Rating = parse_number(Star_Rating),
+          Votes_in_Thou =  str_extract(Votes, "\\d+"),
+          Votes_in_Thou = parse_number(Votes_in_Thou),
+          Metascore = str_extract(stars_group, "\\d+(?=Metascore)"),
+          Metascore = parse_number(Metascore)
+          ) %>% 
+  select(-year_run_rating, -stars_group, -Votes) ->
+movies_df2
+glimpse(movies_df2)
+
+```
+
+
+
+d.  Fix Directors and Stars
+-   Extract just the Directors and Stars from the `plot_directors_stars` (note that they are all preceded by `"Director"`) and put just before `Plot`.
+-   Separate the new column into two columns called `Directors` and `Stars`.
+
+```{r}
+
+movies_df2 %>%
+  mutate(Directors = str_extract(plot_dirs_stars, "(?<=Director)(.*?)(?=Stars)"),
+         Stars = str_extract(plot_dirs_stars, "(?<=Stars).*")
+         ) %>% 
+  select( -plot_dirs_stars) ->
+movies_df3
+glimpse(movies_df3)
+
+```
+
+
+-   Extra Credit: Note the names are not split cleanly. Clean up the character vectors by splitting the string into two or more names as appropriate. Do not worry about if your regex does not catch all the possible diacritical marks, just worry about upper and lower case letters.
+-   Remove the `plot_directors_stars`.
+
+```{r}
+
+movies_df3 %>%
+  select(Directors, Stars) %>% 
+  mutate(names_dir_str <- str_extract_all(Directors, "[A-Z][a-z]*"),
+         names_str <- str_extract_all(Stars, "[A-Z][a-z]*")
+         ) %>% 
+  rename(names_dirs = `names_dir_str <- str_extract_all(Directors, "[A-Z][a-z]*")`,
+         names_stars = `names_str <- str_extract_all(Stars, \"[A-Z][a-z]*\")`
+         ) %>% 
+  unnest_wider(names_dirs, names_sep = "-") %>% 
+  unnest_wider(names_stars, names_sep = "-") -> plot_dirs_stars_gr
+glimpse(plot_dirs_stars_gr)
+
+```
+
+
+
+e.  Fix Country
+-   Remove "From " from the values in `country` and move before `Plot`.
+
+```{r}
+
+movies_df3 %>%
+  mutate (country = str_replace(country, "^From ", "")) -> movies_df4
+glimpse(movies_df4)
+
+```
+
+
+6.  Analyze Stars and Metascore
+a.  Create a plot of `stars` versus `metascore`, color coded by rating rating (i.e., for predicting stars rating based on meta-critic scores).
+    -   Include a *single* Ordinary Least Squares smoothing line with no standard errors.
+    -   Save the object with the name `my_plot`.
+    -   Display `my_plot`.
+    -   Interpret the plot to answer if the plot suggests a strong linear association between the two predictors.
+
+```{r}
+
+#is.na(movies_df4$Rating)
+
+movies_df4 %>% 
+  ggplot(mapping = aes(x =  Metascore, y = Star_Rating)) +
+
+  geom_point(mapping = aes(color = Rating), size=2) +
+  geom_smooth(se = FALSE, method = lm, linetype = "solid") +
+
+  theme_minimal()+
+  xlab("Meta Score") +
+  ylab("Stars Rating") +
+  ggtitle(label = "Stars Rating by Meta-Critic Scores") +
+  theme(plot.title = element_text(hjust = 0.5)) -> my_plot
+my_plot
+ggsave("my_plot.png", path = "../images") 
+
+```
+
+- **Answer:** The plot seems to suggest a weak positive relationship between Stars Rating and Meta Score.
+
+
+b.  Use the linear model function `lm()` to quantitatively assess if there is there a meaningful relationship.
+    -   Show the summary of the output and interpret it in terms of the model $p$-value and the adjusted R-Squared.
+
+```{r}
+
+lm_model = lm(data = movies_df4, formula = Star_Rating ~ Metascore)
+summary(lm_model)
+
+```
+- **Answer:** The model suggests that Stars Rating and Mega Score does not seem to have a meaningful relationship, with an R-squared=0.002482 and a P-value = 0.8444, at a 0.05 significance level. The p-value for the coefficient of Meta Score is also very high (P-value = 0.844) and not statistically significant at 5% level. Therefore, for this data, the effect of Meta Score on Stars Rating is not statistically significant.
+
+
+c.  Add the default non-linear smoother with color "red" to `my_plot` and comment on the new plot.
+
+```{r}
+
+#| warning: false
+
+movies_df4 %>% 
+  ggplot(mapping = aes(x =  Metascore, y = Star_Rating)) +
+
+  geom_point(mapping = aes(color = Rating), size=2) +
+  geom_smooth(se = FALSE, method = lm, linetype = "solid") +
+  geom_smooth(se = FALSE, linetype = "dashed", colour = "red") +
+
+  theme_minimal()+
+  xlab("Meta Score") +
+  ylab("Stars Rating") +
+  ggtitle(label = "Stars Rating by Meta-Critic Scores") +
+  theme(plot.title = element_text(hjust = 0.5)) -> my_plot2
+my_plot2
+ggsave("my_plot2.png", path = "../images") 
+
+```
+
+- **Answer:** The plot suggests that the non-linear smoother presents a very similar pattern comparing with the linear predictor.
+
+
+7.  Votes vs Year
+a.  Create a combined scatter plot and a violin plot of votes by year, both color-coded by rating, and add a single linear smoother.
+
+```{r}
+
+movies_df4 %>% 
+  ggplot(mapping = aes(x = Year, y = Votes_in_Thou, color = Rating)) +
+  
+  geom_point(size=2) +
+  geom_violin(alpha=0.2, size=1) +
+  geom_smooth(se = FALSE, method = lm, linetype = "solid", colour = "blue") +
+  
+  theme_minimal()+
+  xlab("Year") +
+  ylab("Votes") +
+  ggtitle(label = "Movie's Votes in Thousands by Year of Release") +
+  theme(plot.title = element_text(hjust = 0.5)) -> my_plot3
+my_plot3
+ggsave("my_plot3.png", path = "../images") 
+
+```
+
+
+b.  Interpret the plot.
+
+- **Answer:** The only categories with at least two observations per category are: "Not Rated", "PG", PG-13" and "R". Therefore, only four violin plots. The plots show the distribution of the data for those four ratings. The R rated movies vary a lot in number of votes, but it shows the highest number of votes. The other categories received overall less votes. The PG-13 category appears to have a bimodal distribution. The plot suggests that the number of votes might be increasing with years.
+
+
+
+c.  Explain why the example plot legend has squares with no dots and what you could do to fix it.
+
+- **Answer:** Because for the violin plot the alpha is set to 1 or transparency. Therefore, it's necessary to set the opacity of the geom graph.
+
+
+d.  Run a linear model of `Votes` as the response variable and `Year` as the predictor variable and interpret the results.
+
+```{r}
+
+lm_model2 = lm(data = movies_df4, formula = Votes_in_Thou ~ Year)
+summary(lm_model2)
+
+```
+- **Answer:** Overall, the model does not support the assumption that the Number of Votes is actually changing as Year increases, with an R-squared=0.018 and a P-value = 0.5123, at a 0.05 significance level. The p-value for the coefficient of Year is also very high (P-value = 0.512) and not statistically significant at 5% level. Therefore, for this data, the effect of Year on Number of Votes is not statistically significant.
+
+
+8.  Reproduce the following plot (in the HTML) as closely as possible and interpret the plot.
+
+```{r}
+
+movies_df4 %>% 
+  ggplot(mapping = aes(x = Votes_in_Thou, y = fct_reorder(as.factor(country), Votes_in_Thou))) +
+  geom_boxplot() +
+  theme_minimal()+
+  xlab("Votes") +
+  ylab("Country") +
+  ggtitle(label = "Movie's Country by Votes in Thousands") +
+  theme(plot.title = element_text(hjust = 0.5)) -> my_plot4
+my_plot4
+ggsave("my_plot4.png", path = "../images") 
+
+```
+
+- **Answer:** This plot shows that Brazil has the highest vote, followed by Vietnam, Argentina and so on. Japan seems to have more movies in this list than the others countries with varying number of votes.
+
+
+9.  Extra Credit: Get data for all 100 movies - Text excluded: not solved.
+
+
+# Pick Your Own Site to Scrape.
+
+- Note: It is easiest if the site is a static site for the data of interest and does not depend upon you clicking on the page to expose the data. However, those are getting rarer. If it is a site that is dynamic, but you can scrape the first page that loads, that is fine as long as you can produce a reasonable plot.
+
+Select any site from which you wish to scrape data that is not one we discussed in class. You can use one of the sites below if it is of interest.
+
+- **Answer:** I'm scraping data from one of the sites suggested below: [Most-polluted cities by particulate matter concentration](https://en.wikipedia.org/wiki/List_of_most-polluted_cities_by_particulate_matter_concentration). I'll scrape the main table with available information on Most-polluted cities by particulate matter concentration and work with the data.
+
+a.  Download the page.
+b.  Save the page as an html_object to the `data_raw` folder.
+c.  Identify and scrape the elements of interest.
+d.  Convert to a data frame, tidy, and clean the data.
+
+```{r}
+
+#city_pop_pm_obj <- read_html("https://en.wikipedia.org/wiki/List_of_most-polluted_cities_by_particulate_matter_concentration")
+
+#xml2::write_html(city_pop_pm_obj, "../data_raw/city_pop_pm_obj.html")
+
+city_pop_pm_obj <- read_html("../data_raw/city_pop_pm_obj.html")
+
+city_pop_pm_tables <- html_elements(city_pop_pm_obj, "table")
+
+tablist <- html_table(city_pop_pm_tables)
+class(tablist)
+length(tablist)
+
+tablist[[2]] -> city_pop_pm_df
+glimpse(city_pop_pm_df)
+
+city_pop_pm_df %>%
+  select(-`Temporal coverage`, -`Database version (year)`) %>% 
+  rename(pm2_5 = PM2.5, pm10 = PM10, city_town = `City/town`) -> city_pop_pm_df2
+glimpse(city_pop_pm_df2)
+
+```
+
+
+e.  Pose a question and create a plot to provide an answer.
+
+The table contains the top 500 cities in the world in amount of pollution by two micro particle measurements: PM2.5 and PM10, for the years of 2010 to 2022.
+
+- Basic Information on Particulate Matter Concentration and Pollution:
+"When measuring pollution, "particulate matter concentration" refers to the amount of tiny particles suspended in the air, usually measured in micrograms per cubic meter (µg/m3), with the most common types being PM2.5 (fine particles less than 2.5 micrometers in diameter) and PM10 (particles less than 10 micrometers in diameter) which are often used as indicators of air quality levels; the lower the concentration, the cleaner the air.
+  - PM2.5: Considered the most harmful due to its ability to penetrate deep into the lungs.
+  - PM10: Larger particles that can still irritate the respiratory system."
+
+\n
+
+- **Question:** Considering MP2.5, for each country (averaged across cities), which year was pollution at the highest level?
+
+```{r}
+
+city_pop_pm_df2 %>%
+  select(Country, Year, pm2_5, pm10) %>% 
+  group_by (Country, Year) %>% 
+  summarise(mean_pm2_5 = mean(pm2_5), mean_pm10 = mean(pm10), N_Cities = n(), .groups = "drop") %>% 
+  arrange(Country, Year, mean_pm2_5, mean_pm10) -> country_year_pm
+  
+country_year_pm %>% 
+  ggplot(mapping = aes(x = mean_pm2_5,
+                       y = Country,
+                       color = as.factor(Year))) +
+  geom_point(size=2) +
+  theme_bw() +
+  labs(colour = "Year") +
+  xlab("MC2.5 Concentration") +
+  ylab("Country") +
+  ggtitle(label = "Particulate Matter Concentration of MC2.5 by Country by Year") +
+  theme(plot.title = element_text(hjust = 0.5)) -> my_plot5
+my_plot5
+ggsave("my_plot5.png", path = "../images") 
+
+```
+
+
+f.  Interpret the plot and answer your question.
+
+- **Answer:** For instance, India in 2013, and worse in 2015, had the highest average measures of pollution, but that number decreased drastically in 2020. Overall for most countries, that number seems to be decreasing and improving over time.
+

@@ -1,0 +1,333 @@
+---
+title: 'DATA-413/613 HW 7: Databases and SQL'
+author: "Ana Miranda"
+date: today
+number-sections: true
+embed-resources: true
+format: html
+execute:
+  warning: false
+  message: false
+---
+
+
+# Lahman Data {.unnumbered}
+
+The Lahman database of baseball statistics is well known and documented here: <http://seanlahman.com/>.
+
+There is a DuckDB version of the database in the `data` folder, along with a data dictionary.
+
+Answer most questions using SQL code chunks. Use R chunks only for 1, 9, 10, and 11. Do not use the R Lahman package.
+
+
+```{r}
+#| eval: true
+#| message: false
+#| warning: false 
+library(DBI)
+library(duckdb)
+library(tidyverse)
+
+```
+
+
+1.  Create a connection to the Lahman data in the "data" folder.
+
+```{r}
+#| label: make-connection
+
+basecon <- dbConnect(duckdb(dbdir = "../data/lahman23.duckdb", read_only = TRUE))
+class(basecon)
+
+```
+
+2.  Use SQL to show all the tables in this database.
+
+```{sql}
+#| connection: basecon
+
+SHOW TABLES;
+
+```
+
+
+-   Show the columns in the Batting table and their column type.
+
+```{sql}
+#| connection: basecon
+
+DESCRIBE Batting;
+
+```
+
+
+
+-   Show the columns in the Appearances table and their column type.
+
+```{sql}
+#| connection: basecon
+
+DESCRIBE Appearances;
+
+```
+
+
+3.   
+
+a.  Use the People table to create a table with playerID, first name, last name, debut and final game for players who played on or after the start of the 2021 season, on 1 April 2021, ordered by their debut with earliest at the top. 
+
+```{sql}
+#| connection: basecon
+
+SELECT 
+  "playerID", "nameFirst", "nameLast", "debut", "finalGame" 
+FROM 
+  People
+WHERE 
+  "debut" >= '2021-04-01'
+ORDER BY 
+  "debut";
+
+```
+
+
+
+- What is the primary key for the table?
+
+  - **Answer:** 'PlayerID' is the primary key for the table.
+
+
+
+- Use SQL to show how many records were returned.
+
+```{sql}
+#| connection: basecon
+
+SELECT 
+  COUNT("playerID")
+FROM 
+  People
+WHERE 
+  "debut" >= '2021-04-01';
+
+```
+
+
+b.  Use the Player and Appearances tables to create a table with the playerID, first name, last name, and total number of games for players who had appearances in the 2023 season. Sort in order of most games with appearances in the season and show the first 8 players.
+
+```{sql}
+#| connection: basecon
+
+SELECT 
+  PL."playerID", PL."nameFirst", PL."nameLast", PL."debut", PL."finalGame", AP."playerID", AP."G_all"
+FROM 
+  People AS PL
+JOIN 
+  Appearances As AP
+  ON PL."playerID" = AP."playerID"
+WHERE 
+  PL."debut" >= '2023-04-01'
+ORDER BY 
+  AP."G_all"  DESC
+LIMIT 8;
+
+```
+
+
+4.  Use the Batting table to create a table with the batting averages (defined as hits divided by at-bats, or `H/AB`), and the associated playerID's, for the 2016 season in descending order.
+
+-   Be sure to account for players who may have more than one stint (record) as they played for more than one team in the season.
+-   Only include individuals with at least 50 at-bats.
+
+```{sql}
+#| connection: basecon
+
+SELECT 
+  "playerID", sum("H") / sum("AB") as "batting_ave"
+FROM 
+  Batting
+WHERE 
+  "yearID" = '2016' AND "AB" >= 50
+GROUP BY 
+  "playerID"
+ORDER BY 
+  "batting_ave" DESC;
+
+```
+
+
+5.  Use `People` and `Batting` to calculate the batting average (`H` / `AB`) for Babe Ruth in 1931? 
+
+- Use SQL to get Ruth's playerID and then use that ID to get his total Hits (`H`) and total At Bats (`AB`) in 1931. 
+- He only played for one team. 
+- This should only be one SQL call (and you won't get credit if you manually type Ruth's playerID).
+-   Round it to three digits as part of the SELECT.
+-   What is the primary key and the foreign key used in your query?
+
+```{sql}
+#| connection: basecon
+
+SELECT
+  PL."playerID",
+  ROUND(SUM(BT."H") / SUM(BT."AB"), 3) AS "batting_ave"
+FROM
+  People AS PL
+JOIN
+  Batting AS BT 
+  ON PL."playerID" = BT."playerID"
+WHERE
+  PL."nameFirst" = 'Babe' AND PL."nameLast" = 'Ruth' AND BT."yearID" = '1931'
+GROUP BY
+  PL."playerID";
+
+```
+
+
+6.  Use `Batting` to create a result set with the year (starting with 1871) and the average batting average for ALL players across all stints that year and place in descending order by the batting average.
+
+-   A year's batting average is the total number of hits (`H`) for all players divided by the total number of official at bats (`AB`) for all players.
+
+```{sql}
+#| connection: basecon
+
+SELECT
+  "yearID",
+  ROUND(SUM("H") / SUM("AB"), 3) AS batting_ave
+FROM
+  Batting
+WHERE
+  "yearID" >= '1871'
+GROUP BY
+  "yearID"
+ORDER BY
+  batting_ave DESC;    
+
+```
+
+
+
+7.  Use `Batting` and `Pitching` to create a result set with the year, the overall batting average for the year, and the overall average of Earned Runs per batter for the year and the Ratio of batting average divided by Earned Runs per Batter for each year. 
+
+- Calculate average of Earned Runs per batter for the year as Earned Runs (`ER`)/batters faced by pitcher (`BFP`) from the `Pitching` table. 
+- Sort by Ratio with the lowest values at the top.
+- You should have one row for each year that summarizes the results across all batters/pitchers.
+
+```{sql}
+#| connection: basecon
+
+SELECT
+  BT."yearID",
+  ROUND(SUM(BT."H") / SUM(BT."AB"), 3) AS all_batting_average,
+  ROUND(SUM(PT."ER") / SUM(PT."BFP"), 3) AS all_earned_runs_per_batter,
+  ROUND((SUM(BT."H") / SUM(BT."AB")) / (SUM(PT."ER") / SUM(PT."BFP")), 3) AS ratio
+FROM
+  Batting AS BT
+JOIN
+  Pitching AS PT 
+  ON BT."yearID" = PT."yearID"
+GROUP BY
+  BT."yearID"
+ORDER BY
+  ratio;
+
+```
+
+
+
+8.  Write the result of the previous query to the output folder as "year_ba_erb.csv".
+
+```{sql}
+#| connection: basecon
+
+COPY
+(
+  SELECT
+    BT."yearID",
+    ROUND(SUM(BT."H") / SUM(BT."AB"), 3) AS all_batting_average,
+    ROUND(SUM(PT."ER") / SUM(PT."BFP"), 3) AS all_earned_runs_per_batter,
+    ROUND((SUM(BT."H") / SUM(BT."AB")) / (SUM(PT."ER") / SUM(PT."BFP")), 3) AS ratio
+  FROM
+    Batting AS BT
+  JOIN
+    Pitching AS PT 
+    ON BT."yearID" = PT."yearID"
+  GROUP BY
+    BT."yearID"
+  ORDER BY
+    ratio
+)
+
+TO '../data/year_ba_erb.csv' (HEADER, DELIMITER ',');
+
+```
+
+
+
+9.  Repeat the query from 7 but do so in a way that returns an R data.frame. Save the data frame.
+
+```{r}
+
+query <- "
+SELECT
+  BT.yearID,
+  ROUND(SUM(BT.H) / SUM(BT.AB), 3) AS all_batting_average,
+  ROUND(SUM(PT.ER) / SUM(PT.BFP), 3) AS all_earned_runs_per_batter,
+  ROUND((SUM(BT.H) / SUM(BT.AB)) / (SUM(PT.ER) / SUM(PT.BFP)), 3) AS ratio
+FROM
+  Batting AS BT
+JOIN
+  Pitching AS PT ON BT.yearID = PT.yearID
+GROUP BY
+  BT.yearID
+ORDER BY
+  ratio;
+"
+df <- DBI::dbGetQuery(conn = basecon, statement = query)
+glimpse(df)
+
+```
+
+
+
+10. Plot the relationship between ERB and BA with a linear smoother and facet by decade so it looks like the plot below. 
+
+- What do you notice about the plots? Comment on the slope of the smother and the ranges of the axes.
+
+```{r}
+
+df %>%
+  mutate(decade = (floor(yearID / 10) * 10)) %>% 
+  
+  ggplot(mapping = aes(x = all_earned_runs_per_batter,
+                       y = all_batting_average
+                      )) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = lm, linetype = "solid", color = "blue") +
+   
+  facet_wrap( ~ decade, ncol = 4, scales = "free") +
+
+  xlab("Average Earned Runs per Batter") +
+  ylab("Batting Average") +
+  ggtitle(label = "Batting Average and Earned Runs per Batter by Decade") +
+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+  - **Answer:** The plots shows that the relationship between batting average and average earned runs per batter evolved across different decades and with a positive trend line for each decade.
+
+
+11. Close your connection.
+
+```{r}
+
+#| connection: basecon
+#| eval: false
+#| code-fold: true
+
+dbDisconnect(conn = basecon, shutdown = TRUE)
+
+```
+
+
+

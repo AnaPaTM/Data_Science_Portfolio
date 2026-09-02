@@ -1,0 +1,348 @@
+---
+title: "DATA 615 - Regression: Homework - 10"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(leaps)
+library(car)
+library(lmtest)
+```
+
+
+\newpage
+
+\begin{Large}
+  The following 3 questions use the Patient Satisfaction data set from Problem 6.15, p.250.
+\end{Large}
+
+\bigskip
+
+A hospital administrator wished to study the relation between patient satisfaction (Y) and patient's age (X1, in years), severity of illness (X2, an index), and anxiety level (X3, an index). The administrator randomly selected 46 patients and collected the data presented below, where larger values of Y, X2 , and X3 are, respectively, associated with more satisfaction, increased severity of illness, and more anxiety.
+
+\bigskip
+
+```{r}
+ps <- read.table("./data/CH06PR15.txt", header = F)
+colnames(ps) <- c("Y_satisfaction", "X1_age", "X2_severity", "X3_anxiety")
+glimpse(ps)
+```
+\bigskip
+
+```{r}
+summary(ps)
+```
+
+\newpage
+
+# Problem 10.7 (p.414, 10 pts, 5 pts/part)
+
+## a. Prepare an added-variable plot for each of the predictor variables. {.unnumbered}
+
+```{r}
+ps_MLR <- lm(Y_satisfaction  ~ X1_age + X2_severity + X3_anxiety, x = T, data = ps)
+avPlots(ps_MLR)
+```
+
+## b. Do your plots in pan (a) suggest that the regression relationships in the titted regression function in problem 6.15c are inappropriate for any of the predictor variables? Explain.  {.unnumbered}
+
+
+* The partial regression plots for severity of illness (X2) and anxiety level (X3) present no specific pattern and suggest those predictor can be omitted from the model.
+
+* The partial regression plot for age (X1) shows a strong negative linear association with the response variable and age should be kept in the model.
+
+* No plot shows a curved pattern and a first-order model is appropriate for the analysis.
+
+* The partial regression plots suggest the current model should be revised and that fewer predictors should be considered in the model.
+
+
+\newpage
+
+# Problem 10.11 (skip e) (p.415, 25 pts, 5 pts/part)
+
+## a. Obtain the studentized deleted residuals and identify any outlying observations. Use the Bonferroni outlier test procedure with alpha = 0.10. State the decision rule and conclusion. {.unnumbered}
+
+
+```{r}
+ti <- rstudent(ps_MLR)
+head(ti)
+```
+
+\bigskip
+
+```{r}
+n = nrow(ps)
+p = length(ps_MLR$coefficients)
+fam_alpha = 0.10
+
+t_crit = qt(1 - fam_alpha / (2 * n), n - p -1)
+paste("t-critic computed: ", round(t_crit, 3))
+
+max <- max(ti)
+paste("Maximum studentized residue found: ", round(max, 3))
+
+min <- min(ti)
+paste("Minium studentized residue found: ", round(min, 3))
+
+ti[abs(ti) > t_crit]
+```
+
+\bigskip
+
+* Decision rule:
+
+  * if $|t_i|$ > $t_{critic}$, conclude the $i_{th}$ observation is an outlier with respect with the response variable.
+  * Otherwise, the $i_{th}$ observation is not an outliers.
+  
+* Conclusion: 
+
+  * As we can see above, no absolute value of studentized residue is larger than t-critic = 3.272. Therefore, we can conclude that there is no outliers with respect to Y in the model.
+
+\bigskip
+
+## b. Obtain the diagonal elements of the hat matrix. Identify any outlying X observations. {.unnumbered}
+
+```{r}
+hii_leverage <- hatvalues(ps_MLR)
+head(hii_leverage)
+```
+
+```{r}
+n = nrow(ps)
+p = length(ps_MLR$coefficients)
+
+thresh_hii = (2 * p) / n
+thresh_hii
+
+hii_leverage[hii_leverage > thresh_hii]
+```
+\bigskip
+
+* Conclusion:
+
+  * According with the output above, observations 9, 28 and 39 are outliers, with respect with the X variables in the model, since all three cases present leverage values larger than the threshold of 0.174 computed above.
+
+
+
+## c. Hospital management wishes to estimate mean patient satisfaction for patients who are X1 = 30 years old, whose index of illness severity is X2 = 58, and whose index of anxiety level is X3 = 2.0. Use (10.29) to determine whether this estimate will involve a hidden extrapolation. {.unnumbered}
+
+```{r}
+newX <- c(1, 30, 58, 2)
+
+designX <- ps_MLR$x
+
+lev <- t(newX)%*%solve(t(designX)%*%designX)%*%newX
+lev
+```
+
+\bigskip
+
+* Conclusion:
+
+  * Yes, the new estimates would involve a hidden extrapolation since the new leverage is $h_{ii} = 0.327$ and is larger than 0.174 threshold.
+
+
+## d. The three largest absolute studentized deleted residuals are for cases 11, 17, and 27. Obtain the DFFITS, DFBETAS, and Cook's distance values for this case to assess its influence. What do you conclude? {.unnumbered}
+
+
+```{r}
+data.frame(ti) %>% 
+  slice_max(abs(ti), n = 3)
+```
+
+
+```{r}
+dffits(ps_MLR)[c(11, 17, 27)]
+```
+
+```{r}
+dfbetas(ps_MLR)[c(11, 17, 27), ]
+```
+
+```{r}
+cooks.distance(ps_MLR)[c(11, 17, 27)]
+```
+
+Calculating the threshold for Cook's Distance below:
+
+```{r}
+n = nrow(ps)
+p = length(ps_MLR$coefficients)
+
+thresh_CD = qf(0.5, p, (n - p))
+thresh_CD
+```
+
+* Conclusion:
+
+  * The Cook's Distance measures above, for the cases in question, quite are smaller than the threshold of 0.853 computed. Therefore, those observations are not influential despite having large studentized residues.
+  
+  * A threshold of 1 can be used to compared the values for DFFITS and DFBETAS since this data set, with n = 46, can be considered small given the rule of n/p = 46/4 =  11.5 for regression analysis. For large data sets, we can consider a thresholds of $2 * \sqrt{p/n} = 0.59$ or $2 / \sqrt{n} = 0.30$. As we can see, no values of either DFFITS or DFBETAS is close to 1 and again suggesting no real problems with cases 11, 17, and 27. 
+  
+  
+
+\bigskip
+
+## e. Skipped  {.unnumbered}
+
+
+## f. Calculate Cook's distance for each case and prepare an index plot. Are any cases influential according to this measure? {.unnumbered}
+
+
+```{r}
+plot(cooks.distance(ps_MLR), ylab="Cook's Distance")
+abline(qf(0.5, p, (n - p)), 0, lty = 2)
+```
+
+```{r}
+influenceIndexPlot(ps_MLR)
+```
+
+* Conclusion:
+
+  * The plot show that cases 17 and 31 have the largest Cook's D values. However, both $D_i$ values are much smaller than 0.853 threshold as observed in the first plot above.
+  
+
+\newpage
+
+# Problem 10.17 (p.417, 10 pts, 5 pts/part)
+
+## a. What do the scatter plot matrix and the correlation matrix show about pairwise linear associations among the predictor variables?  {.unnumbered}
+
+```{r}
+pairs(ps)
+```
+
+
+\bigskip
+
+```{r}
+cor(ps)
+```
+
+
+\bigskip
+
+* Findings:
+
+  * The predictors are correlated with each other, but no correlation can be considered very strong. The largest correlation found was between X2 and X3 with r = 0.6705. 
+  
+  
+  
+## b. Obtain the three variance inflation factors. What do these results suggest about the effects of multicollinearity here? Are these results more revealing than those in part (a)?  {.unnumbered}
+
+  
+```{r}
+vif(ps_MLR)
+```
+
+* Findings:
+
+  * The IVFs are larger than 1, but still very close to 1, which indicates that multicollinearity is not considered a problem for this data. 
+  
+  
+  
+\newpage
+
+# Problem 12.6. Copier Maintenance. (p. 502, 10 pts. 5pts DW test, 5 pts for plot and comments.)
+
+`time`: Y is the total number of minutes spent by the service person
+
+`copiers`: X is the number of copiers serviced
+
+`copiers_age`: X2 is the mean operational age of copiers serviced on the call (in months).
+
+`workers_experience`: X3 is number of years of experience of the service person making the call.
+
+
+\bigskip
+
+```{r}
+cm <- read.table("./data/CH03PR04.txt", header = F)
+colnames(cm) <- c("time", "copiers", "copiers_age", "workers_experience")
+glimpse(cm)
+
+cm_SLR <- lm(time ~ copiers, data = cm)
+```
+
+\bigskip
+
+## The observations are listed in time order. Assume that regression model (12.1) is appropriate. Test whether or not positive autocorrelation is present: use alpha = 0.01. State the alternatives, decision rule, and conclusion.
+
+\bigskip
+
+**Simple linear regression model with AR(1):**
+
+$$Y = \beta_0 + \beta_1X + \epsilon$$
+Where, $\epsilon = \rho\epsilon_{t-1} \ + \ u_t$
+
+\bigskip
+
+**Hypothesis:**
+
+  * $H_0: \rho = 0$, the error terms are independent.
+  
+  * $H_a: \rho > 0$, the error terms show positive serial correlation.
+  
+
+\bigskip
+
+**Durbin-Watson test:**
+
+```{r}
+dwtest(cm_SLR)
+```
+\bigskip
+
+```{r}
+dwtest(cm_SLR, alternative = "two.sided")
+```
+\bigskip
+
+**Decision rule considering p-values:**
+
+  * $p-value > \alpha$, do not reject $H_0$
+  * $p-value < \alpha$, reject $H_0$
+
+
+\bigskip
+
+**Decision rule considering critical values:**
+
+  * n = 45, $d_L$ = 1.29, $d_U$ = 1.38
+
+  * If D > 1.38, conclude $H_0$
+  * If D < 1.29, conclude $H_a$
+  
+\bigskip
+
+**Conclusion:**
+
+  * Considering DW-statistic = 2.4015 with computed p-value = 0.9088 (or 0.1825 for two-sided) larger than 0.01, we do not reject $H_0$. Therefore, the error terms are assumed to be independent.
+
+\newpage
+
+## In addition, plot the residuals in a sequence plot (It is also the time plot since the observations are organized in time order.) and comment.
+
+
+```{r}
+plot(cm_SLR$residuals, type = "l")
+```
+ 
+ 
+* Conclusion: 
+ 
+  * The sequence plot of the residual does not show any specific problems or unusual trends with respect to time correlation.

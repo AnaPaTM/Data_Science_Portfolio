@@ -1,0 +1,154 @@
+---
+title: "DATA 615 - Regression: Homework - 2"
+author: "Ana Miranda"
+date: " `r Sys.Date()` "
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: 6
+    number_sections: yes
+urlcolor: "blue"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(patchwork)
+```
+
+
+\bigskip
+
+# Work on Lab 1 if you haven’t done so already. Be sure to read the instructions and the sample submissions carefully before you start
+
+Yes, I have read Lab 1.
+
+
+# Please review the concept of computing p-values and think about how to find the p-value of a one-sided (aka. one-tailed) test from the p-value of a two-sided (aka. two-tailed) test. Here are some references:
+
+- https://stats.idre.ucla.edu/other/mult-pkg/faq/pvalue-htm/
+- https://stats.oarc.ucla.edu/other/mult-pkg/faq/general/faq-what-are-the-differences-between-one-tailed-and-two-tailed-tests/
+
+
+# Problem 2.5 (a, b, c, d) (p. 90. Read the following notes before you start.) (30 pts)
+
+## Consideratios {.unnumbered}
+
+- Part (a) is asking about the slope. (Why?)
+- In part (a), compute the confidence interval using relevant formula(s), and use software output to confirm your results. Follow these steps when formula-based computation is requested in homework.
+
+i. First, use software to get the intermediate results, such as the estimate of the parameter and the standard error of the estimate.
+ii. Next, plug the intermediate results into the appropriate formula to construct the confidence interval or prediction interval.
+iii. Next, use software to confirm you answer. In R, use function confint() to compute CI of the regression parameters. In SPSS, you can request the software to compute and show the CI of the regression parameters in the output.
+
+- In part (b), clearly layout the hypothesis, compute the test-statistic using relevant formula, compute the p-value, and state your conclusion in the context of the problem. Then, use the software output to confirm your results. (Similar requirement to part a.)
+
+- In part (d), test Ha: B1 > 14. (Why?) Clearly state the hypothesis, use software to get necessary intermediate results, compute the test-statistic using relevant formula, compute the p-value, and state your conclusion in the context of the problem.
+
+
+Other general comments about finding the critical value:
+
+  - To find the t-distribution critical value for confidence interval, you can use software (qt( ) in R), online calculators (statcrunch.american.edu, or just google “t distribution calculator”), or refer to the t-distribution Table (ips6e_table_d_t.pdf, the old fashion way).
+  - (The old fashion way. Just FYI.) To use the table, start from the left panel of the table to locate the desired degrees of freedom (df) to determine a row. If the desired df is not in the table, use the closest one. Then, find the desired confidence level from the bottom of the table to determine the column. Then, the cross point of the selected row and column gives you critical value. For example, in a simple linear regression with n=30 observations, the degrees of freedom is 30-2=28. At 95% confidence level, the critical value is 2.048.
+
+- Observation: For each call, X is the number of copiers serviced and Y is the total number of minutes spent by the service person.
+
+\bigskip
+
+## Reading in the data set again: {.unnumbered}
+
+```{r}
+cm <- read.table("./data2/CH01PR20.txt", header = F)
+colnames(cm) <- c("time", "copiers")
+glimpse(cm)
+```
+
+
+## Estimating the regression function: {.unnumbered}
+
+```{r}
+cm_SLR <- lm(data = cm, time ~ copiers)
+summary(cm_SLR)
+```
+
+\bigskip
+
+**The estimated regression function is:**
+
+$$\widehat{time} = -0.5802 + 15.0352(copiers)$$
+
+\bigskip
+
+
+## a) Estimate the change in the mean service time when the number of copiers serviced increases by one. Use a 90 percent confidence interval. Interpret your confidence interval. {.unnumbered}
+
+
+```{r}
+# Calculating a 90% CI for B1.
+tcrit <- qt(0.95, df=45-2)
+tcrit
+
+CI_B1 <- c(15.0352 - tcrit*0.4831, 15.0352 + tcrit*0.4831)
+CI_B1
+```
+
+- The mean service time will change by 15.0353 when the number of copiers serviced increases by one.
+
+- The 90% confidence interval for the slope is: 14.223 <= B1 <= 15.858.
+
+
+\bigskip
+
+## b) Conduct a t-test to determine whether or not there is a linear association between X and Y here; control the alpha risk at 0.10. State the alternatives, decision rule, and conclusion. What is the P-value of your test? {.unnumbered}
+
+The test of hypothesis for the slope B1 different from zero will determine whether there is a linear association between X and Y. Therefore the alternatives are:
+
+$H_0: \beta_1 = 0$ vs $H_A: \beta_1 \neq 0$
+
+
+```{r}
+test_stat = c((15.0352 - 0)/0.4831)
+test_stat
+
+tcrit <- qt(0.95, df=45-2)
+tcrit
+```
+
+
+The test-statistic, t-observed, is: $t-observed = 31.122$.
+
+if |t-observed| <= t-critic, conclude $H_0$. Otherwise, conclude $H_a$. Since the t-observed is greater than the t-critic, the null hypothesis is rejected in favor of the alternative hypothesis that there is in fact a linear association between the variables `time` and `copiers`.
+
+For computing the p-value, the probability of P(t-critic(df = n-2 = 43) > t-observed) => P{t(1.681071) > t-observed(31.122)} at alpha/2 = 0.10/2 = 0.05. Following the t distribution table, it's possible to see that probability is smaller than 0.001.
+
+
+\bigskip
+
+## c) Are your results in parts (a) and (b) consistent? Explain. {.unnumbered}
+
+Yes, it is consistent with the graphical analysis done in Homework 1 and with the linear regression analysis output above.
+
+
+\bigskip
+
+## d) The manufacturer has suggested that the mean required time should not increase by more than 14 minutes for each additional copier that is serviced on a service call. Conduct a test to decide whether this standard is being satisfied by Tri-City. Control the risk of a Type I error at 0.05. State the alternatives, decision rule, and conclusion. What is the P-value of the test? {.unnumbered}
+
+The alternatives for the hypothesis test are:
+
+$H_0: \beta_1 <= 14$ vs $H_A: \beta_1 > 14$
+
+
+```{r}
+test_stat = c((15.0352 - 14)/0.4831)
+test_stat
+
+tcrit <- qt(0.95, df=45-2)
+tcrit
+```
+the t-observed = 2.1428, while the t-critic =  1.681. Since the t-observed observed is 2.1425 and larger than 1.681, we reject the null hypothesis and accept the alternative hypothesis that the mean required time can actually increase by more than 14 minutes for each additional copier serviced.
+
+The p-value for such observed t-observed is: p-value < 0.01 and smaller than alpha at 0.05 and H0 is rejected in favor of Ha.

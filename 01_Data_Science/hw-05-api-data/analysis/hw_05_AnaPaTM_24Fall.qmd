@@ -1,0 +1,360 @@
+---
+title: DATA-413/613 Homework 05 API Data
+author: Ana Miranda
+number-sections: true
+embed-resources: true
+format: html
+execute:
+  warning: false
+  message: false
+---
+
+# Using the Smithsonian API
+
+The Smithsonian has an [Open Access API](https://www.si.edu/openaccess/devtools) for searching its catalog with [API documentation](https://edan.si.edu/openaccess/apidocs/).
+
+- The API returns deeply-nested lists given the complex structure of the data.
+- If of interest, more detailed information can be found at [Smithsonian Institution Enterprise Data Access Network + Open Access Initiative Content Repository](https://edan.si.edu/openaccess/docs/).
+
+
+**Use the {tidyverse}, {keyring}, {httr2}, and {jsonlite} packages for this question.**
+
+```{r}
+
+library(tidyverse)
+library(keyring)
+library(httr2)
+library(jsonlite)
+library(repurrrsive)
+
+```
+
+
+## API Key
+
+The API requires an API key available from [data.gov](https://api.data.gov/signup/).
+
+1.   Obtain an API key and use a {keyring} function in the console to save it in your credential manager with the name "API_KEY_DATA-GOV".
+
+```{r}
+
+#key_set("API_MYKEY_DATA_GOV")
+#key_get("API_MYKEY_DATA_GOV")
+
+```
+
+
+## General Search Query
+
+a.   Create a request object `search_req` for the general "search" query endpoint with URL "https://api.si.edu/openaccess/api/v1.0/search".
+
+b. Review the [API documentation for "search"](https://edan.si.edu/openaccess/apidocs/#api-search-search) and use the `search_req` object to create a query for the phrase "artificial intelligence".
+    -   You will need to add your API key to the query.
+    -   Perform the query and save to an object with the name `search_resp`.
+
+```{r}
+
+url <- "https://api.si.edu/openaccess/api/v1.0/search"
+
+req <- request(url) %>% 
+  req_url_query(q = "artificial intelligence") %>% 
+  req_url_query(rows = 10) %>% 
+  req_url_query(start = 0) %>% 
+  req_url_query(api_key = key_get("API_MYKEY_DATA_GOV")) %>%
+  req_perform() -> search_req
+str(search_req)
+  
+```
+
+c. Check the status of the query response. It should be 200.
+
+```{r}
+
+search_req
+resp_status(search_req)
+
+```
+
+## Convert to a Tibble with Columns of Interest
+
+a. Convert the body of the `search_resp` object from RAW format to JSON and examine the elements of the response.
+- The content of interest is in the  `response$rows` elements.
+- Save the JSON output from `response$rows` to a variable called `resp_list`. It should have 10 elements.
+- Convert `resp_list` to a tibble called `resp_df`. 
+- It should have 10 rows with one column.
+
+```{r}
+
+resp_body <- resp_body_json(search_req)
+glimpse(resp_body)
+
+```
+
+```{r}
+
+resp_list <- resp_body$response$rows
+glimpse(resp_list)
+
+```
+
+
+```{r}
+
+resp_df <- tibble(artintel = resp_list)
+glimpse(resp_df)
+
+```
+
+
+b. Use `hoist` to extract the `id` and `title` and `content` from the `resp_df$resp_list` column into columns with those names and save to a tibble called `ids_df`.
+
+```{r}
+
+resp_df %>% 
+  hoist(
+    .col = artintel,
+    id ="id",
+    title = "title",
+    content = "content"
+  ) -> ids_df
+glimpse(ids_df)
+
+
+```
+
+
+c. Use `hoist()` to extract the element with the URL that is nested inside the `content$descriptiveNonRepeating` element and save the `ids_df`.
+
+```{r}
+
+ids_df %>%
+  hoist(content, descriptiveNonRepeating ="descriptiveNonRepeating") %>% 
+  hoist(descriptiveNonRepeating, record_link ="record_link") %>%
+  select(-descriptiveNonRepeating) ->
+ids_df
+glimpse(ids_df)
+
+```
+
+d. Use `hoist()` to extract the `object_type` element that is nested inside the `content$indexStructured` element and save the `ids_df`.
+
+```{r}
+
+ids_df %>%
+  hoist(content, indexedStructured = "indexedStructured") %>%
+  hoist(indexedStructured, object_type = "object_type") %>%
+  select(-indexedStructured) ->
+ids_df
+glimpse(ids_df)
+
+```
+
+e.  It is a list column. Why?
+
+- **Answer:** Yes, it is a list and because a given title can have more than one object type.
+
+f. Unnest the `object_type` column so the tibble has  nine variables and 10 rows and save as `ids_dfw`. 
+
+```{r}
+
+ids_df %>% 
+  unnest_wider(object_type, names_sep = "-") -> 
+ids_dfw
+glimpse(ids_dfw)
+
+```
+
+## Smithsonian Object Types
+
+a. Use code to show the distinct object types there are across all object columns.
+- Hint: consider using a `tidyr::tidyr_tidy_select()` helper function to select just those columns and then pivot.
+
+```{r}
+
+ids_dfw %>% 
+  select(starts_with("object_")) %>% 
+  pivot_longer(
+    cols = starts_with("object_"), 
+    names_to = "object", 
+    values_to = "type",
+    names_prefix = "object_type,",
+    values_drop_na = TRUE) %>% 
+  group_by(type) %>% 
+  count()
+
+```
+
+
+## Create a Smithsonian Search Function
+
+a.- c. Consider if you combined the code from the above into one code chunk to create a function called `smith_search` with three arguments: `req`, `q`, and `rows` where the output is a tibble similar to what you created above with `ids_df`.
+
+-   `req` is a request object for the search URL.
+-   `q` is the query or search phrase.
+-   `rows` is the number of rows in the query with a default value of 10.
+-   Assume all required packages have been loaded and the API key is named "API_KEY_DATA-GOV".
+-   There is no need to include documentation or error checking.
+
+The following lines can be used in creating the function, **but they are in the wrong order and five lines are missing.** You will need to rearrange and create the missing lines.
+
+- Note: The code lines use the natural pipe `|>` which has different rules than the magrittr pipe `%>%`.
+    -   The magrittr pipe allows the use of the pronoun `.` and the natural pipe allows the use of the pronoun `_`.
+    -   However, the natural pipe requires its pronoun be used with a named argument.
+    -   It also requires the left side of the pipe be a completed object before using the `$` operator so it may require enclosing the left side (several steps) within parentheses.
+    -   That is why you see "perhaps unusual" left or right parentheses in some of the lines below.
+
+
+```{block}
+    hoist(content, link = c("descriptiveNonRepeating", "record_link")) |>
+    req_url_query(q = q) |>
+      .col = data,
+    resp_body_json(resp = _))$response$rows |>
+    (req |>
+       title = "title",
+    tibble(data = _) |>
+    hoist(
+      id = "id",
+    ) |>
+    req_url_query(api_key = keyring::key_get("API_KEY_DATA-GOV")) |>
+    unnest_wider(object_type, names_sep = "-")
+      content = "content"
+```
+
+
+```{r}
+
+smith_search <- function(req, q, rows) {
+
+  (request(req) |>
+    req_url_query(q = q) |>
+    req_url_query(rows = rows) |> 
+    req_url_query(api_key = keyring::key_get("API_MYKEY_DATA_GOV")) |> 
+    req_perform() |>
+     
+    resp_body_json(resp = _))$response$rows |>
+
+    tibble(data = _) |>
+
+    hoist(
+      .col = data,
+      id = "id",
+      title = "title",
+      content = "content"
+    ) |>
+
+    hoist(content, link = c("descriptiveNonRepeating", "record_link")) |>
+    hoist(content, object_type = c("indexedStructured", "object_type")) |>
+    unnest_wider(object_type, names_sep = "-")
+  
+}    
+
+```
+
+d. Run your function with the arguments `search_req` and search phrase "artificial intelligence" and assign the output to `ids_test`.
+
+```{r}
+
+url <- "https://api.si.edu/openaccess/api/v1.0/search"
+
+ids_test <- smith_search(url, "artificial intelligence", 10)
+
+```
+
+
+-   Use `identical()` to confirm `ids_test` is identical to `ids_dfw` for all rows of all columns except the last, without using the column number so it will work if the number of columns changes for different query phrases.
+
+```{r}
+
+ids_test %>% rename(artintel = data, record_link = link) -> ids_test
+
+identical(ids_test, ids_dfw)
+
+glimpse(ids_dfw)
+glimpse(ids_test)
+
+```
+**Answer:** The data frames look identical. However, the identical() function doesn't agree. I couldn't figure out why. 
+
+e. Run your function with the arguments `search_req`, the search phrase "artificial intelligence", and `rows = 20` and assign the output to `ids_more`.
+
+```{r}
+
+smith_search(url, "artificial intelligence", 20) -> ids_more
+ids_more
+
+```
+
+
+g. Select the object type columns from `ids_more`. Use code to generate a tibble with a single column with only the distinct types of Smithsonian objects in all of the object type columns.
+- Convert the object types to Title capitalization and sort in alphabetical order.
+- Show the resulting tibble.
+- It should have 12 rows.
+
+```{r}
+
+ids_more %>% 
+  select(starts_with("object_")) %>% 
+  pivot_longer(
+    cols = starts_with("object_"), 
+    names_to = "object", 
+    values_to = "type",
+    names_prefix = "object_type,",
+    values_drop_na = TRUE) %>% 
+  group_by(type) %>% 
+  count() %>% 
+  arrange(type)
+  
+```
+**Answer:** I couldn't find 12 different categories for object type. It's looking like there are at most 10 categories available to classify an object. That could be it.
+
+
+## Searching Titles (Extra Credit)
+
+Create and show a tibble with the following three columns: 
+
+- `words` is the output of using your function to query titles with the words "data science" with 20 rows and extracting just the titles.
+- `words_single` is the output of using your function to query the titles with the phrase 'data science' inside the query with 20 rows and extracting just the titles.
+- `words_double` is the output of using your function to query the titles with the phrase "data science" inside the query with 20 rows and extracting just the titles.
+  - Hint: you will need to use a combination of ' and " to create a valid query with embedded phrases.
+- Use {stringr} to select just the first 30 characters of each title.
+- What do you observe?
+
+```{r}
+
+smith_search(url, "data science", 20) -> words
+
+words %>%
+  select(title) %>%
+  mutate(words_single = ifelse(str_detect(title, "(?i)data|science"), title, "NA")) %>%
+  mutate(words_double = ifelse(str_detect(title, "(?i)data science"), title, "NA"))
+   
+```
+
+- **Answer:** It seems that requesting a query for "data science" on the Smithsonian catalog may also includes results for any titles with the word data in it, even if not related to data sciences.
+
+
+# Using an API of your choice
+
+1.  Pick a website of your choice (not discussed in class) that requires a free API key and has recent data. You may use an R package for the website or use {httr2} to interact directly with the API.\
+2.  **Identify the link to instructions to obtain a key for the API.**\
+3.  Use your API with {keyring} to download a data set with multiple variables. **Do not include your key in your file.**\
+
+- **Considering for this problem FDA drug API endpoints for Adverse Drug Events:** "This is the openFDA API endpoint for adverse drug events. An adverse event is submitted to the FDA to report any undesirable experience associated with the use of a drug, including serious drug side effects, product use errors, product quality problems, and therapeutic failures."
+
+
+```{r}
+
+url_FDA <- "https://api.fda.gov/drug/event.json?"
+
+#key_set("API_MYKEY_FDA_GOV")
+#key_get("API_MYKEY_FDA_GOV")
+
+req2 <- request(url_FDA) %>% 
+  req_url_query(api_key = key_get("API_MYKEY_FDA_GOV")) %>%
+  req_url_query(search = "patient.reaction.reactionmeddrapt:fatigue") %>% 
+  req_url_query(limit = 10) %>% 
+  req_perform() -> search_req2
+str(search_req2)
+
+```
+

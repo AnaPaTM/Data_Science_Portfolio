@@ -1,0 +1,914 @@
+---
+title: "DATA-413/613 HW 01"
+author: "Ana Miranda"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+# Admin Elements {.unnumbered}
+
+Review the Syllabus on Canvas and answer the following questions:
+
+I, *Ana Miranda* have:
+
+1.  Ensured my Canvas Profile has a photo of me (head and shoulders).
+2.  Reviewed the syllabus and the associated policies on the following date: 09/10/2024.
+3.  Reviewed the American University policies on academic integrity and I agree to comply with them and the additional guidance in the syllabus for this course.
+4.  Reviewed the General Instructions for Assignments on the following date: 09/10/2024.
+5.  Confirmed my information in the Student Info spreadsheet on Canvas Collaborations is correct.
+6.  Updated my version of R and RStudio and the {tidyverse} packages for this course.
+
+# Analysis Elements {.unnumbered}
+
+0. Load the {tidyverse} and use functions from {tidyverse} when possible.
+
+```{r}
+
+#| eval: true
+#| message: false
+
+suppressMessages(library(tidyverse))
+library(ggthemes)
+library(broom)
+library(knitr)
+library(forcats)
+
+```
+
+# College Scorecard
+
+The data folder contains `college_scorecard_extract_2024-06-13_UG.csv`, a *subset* of data in the [College Scorecard](https://collegescorecard.ed.gov/data/) as of June 13, 2024. This data set contains information on undergraduate college cohorts in the United States. The data dictionary is in the `data` folder. The variables include: (see HTML file)
+
+1.  Load the data.
+
+a.  Load `college_scorecard_extract_2024-06-13_UG.csv` (in the `data` directory) using one call to a {readr} function with a relative path and save the resulting tibble.
+    -   Note, this data uses "NULL" for some missing values. Use an argument of the {readr} function to convert "NULL" to `NA` during the loading of the data. Do not not suppress messages or warnings.
+
+```{r}
+
+coll_scorecd <- read_csv("../data/college_scorecard_extract_2024-06-13_413.csv", na = "NULL")
+
+```
+
+
+b.  Use `glimpse()` to examine the data.
+
+```{r}
+glimpse(coll_scorecd)
+```
+
+
+2.  If you used the default settings for reading in the data, multiple variables are probably type/class character when the data suggests they should be numeric.
+
+a.  Which ones are they?
+
+```{r}
+spec(coll_scorecd)
+```
+
+b.  Look at the data. Why were these columns read in as type character instead of double?
+- **Answer:** Because the data import parsing algorithm identified cells containing characters and assumed such columns as "character" data types and not as "numeric/double". That is because "NULL" is not the only code used to identify NA's. The code "PrivacySuppressed" appears through out the data and I'm also assuming that information to be NA as well. Next step, read the data again including "PrivacySuppressed" values as NA to fix the problem.
+
+
+3.  Reload the data with a {readr} function and use an argument to convert the offending entries to `NA` so the variables are automatically read in as type double. You should have 42 variables of type double.
+
+```{r}
+
+coll_scorecd2 <- read_csv("../data/college_scorecard_extract_2024-06-13_413.csv", 
+                          col_names = TRUE, 
+                          na = c("NULL", "PrivacySuppressed"))
+
+```
+
+
+4.  How is average faculty salary associated with the median earnings of working students ten years after initial enrollment?
+
+a.  Use {ggplot2} to create an appropriate plot to assess for a relationship (with `AVGFACSAL` as the explanatory X variable). Use a {ggplot2} function argument to reduce over-plotting . Add the default smoother with `se = FALSE`. Facet on `ICLEVEL`.
+
+```{r}
+
+ICLEVEL_N <- c("4-year", "2-year", "less than 2-year")
+names(ICLEVEL_N) <- c(1, 2, 3)
+
+coll_scorecd2 %>%
+  ggplot(mapping = aes(x = AVGFACSAL,
+                       y = MD_EARN_WNE_P10
+                       )) +
+    geom_point() +
+
+    geom_smooth(se = FALSE, linetype = "solid", linewidth = 1.5, colour = "red") +
+    facet_wrap( ~ ICLEVEL, labeller = labeller(ICLEVEL = ICLEVEL_N)) +
+    theme_bw() +
+
+    xlab("Average Faculty Salary") +
+    ylab("Student Median Earning 10 Years After Entry") +
+    ggtitle(label = "Faculty Salary by Median Earning Shown by Type of Institution",
+            subtitle = "College Scorecard Data as of June, 2024") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+b.  Interpret the plots about the potential relationships.
+- **Answer:** The plots indicate a strong positive relationship between faculty salary and potential student salary, specially for 4-year programs.
+
+
+c.  Why did `geom_smooth()` chose the `mgcv::gam()` smoothing method.
+- **Answer:**  Because it must be the default choice of smoothing function for the data at hand when no specific one was chosen a priory. Following is what R documentation states: "For method = NULL the smoothing method is chosen based on the size of the largest group (across all panels). stats::loess() is used for less than 1,000 observations; otherwise mgcv::gam() is used with formula = y ~ s(x, bs = "cs") with method = "REML"."
+
+
+d.  Why is there no `ICLEVEL` 3 plot, or, if there is a plot, why is there no data in the `ICLEVEL` 3 plot?
+
+```{r}
+
+coll_scorecd2 %>%
+  select(ICLEVEL, AVGFACSAL, MD_EARN_WNE_P10) %>% 
+  group_by(ICLEVEL) %>%
+  summarize(count = n(), 
+            sum_AVGFACSAL = sum(AVGFACSAL, na.rm = TRUE),
+            sum_MD_EARN_WNE_P10 = sum(MD_EARN_WNE_P10, na.rm = TRUE),
+            .groups = "drop")
+
+```
+
+- **Answer:**  There are 125 observations in the data for institution level 3, or less than 2-year programs. However, the data for average faculty salary is missing for level 3 institutions. Therefore, those observations were dropped from the plot above.
+
+
+e.  Use `lm()` to run a linear model of the relationship **for only those schools with ICLEVEL 1** and save the results.
+
+```{r}
+
+coll_scorecd2 %>% 
+  filter(ICLEVEL == 1) -> data_lv1
+
+lm_model = lm(data = data_lv1, formula = log(MD_EARN_WNE_P10) ~ log(AVGFACSAL)) 
+
+```
+
+
+f.  Use `summary()` on the results.
+
+```{r}
+
+summary(lm_model)
+
+```
+
+g.  Interpret the results of the model based on the coefficient for `AVGFACSAL` and the model $p$-value and adjusted $r$-squared value.
+- **Answer:**  The model is a good fit to predict median earnings 10 year after enrollment with a p-value less than 5%. The intercept is positive and also highly significant with a very small p-value. The coefficient of average faculty salary is positive and also highly significant - indicating that a increase in faculty salary will impact positively student earnings. The R-Squared=0.5196 indicates that this model can predict about 52% of median earning for working students 10 years after enrollment.
+
+
+h.  Given the adjusted $r$-squared value, what do you recommend to try to better predict average earnings of working students ten years after initial enrollment at ICLEVEL 1 schools?
+- **Answer:**  Adding more variables to the model might improve the model predictability.
+
+
+
+5.  How is the level of the institution associated with the median earnings of students ten years after enrollment?
+
+a.  Reproduce the following plot to explore this relationship. Use `ggthemes::theme_fivethirtyeight()`. Use a chunk option to set the figure width at 7.
+
+```{r, fig.width=7}
+
+ggplot(coll_scorecd2, mapping = aes(x = as.factor(ICLEVEL), 
+                                    y = MD_EARN_WNE_P10)) +
+geom_boxplot(notch = TRUE) +
+  
+scale_y_log10() +  
+
+scale_color_fivethirtyeight() +
+theme_fivethirtyeight() +
+
+xlab("") +
+ylab("") +
+
+ggtitle(label = "Log of Median Earnings by Level of Institution",
+        subtitle = "Workind Students, 10 years after enrollment") +
+  
+labs(caption = "USDOE College Scoreboard Data 6/13/2024")
+
+```
+
+
+b.  Interpret the plot to answer the question.
+- **Answer:**  The plot shows that the distribution of average earnings is higher for 4-year institutions.
+
+
+c.  Use `aov()` to test if all of the institution levels have the same true mean of logged median earnings of working students ten years after enrollment.
+
+```{r}
+
+aov_results = aov(data = coll_scorecd2, log(MD_EARN_WNE_P10) ~ ICLEVEL)
+
+```
+
+
+d.  Use `broom::tidy()` to show the results. Interpret the results
+```{r}
+
+aov_results %>% 
+  tidy() %>% 
+  dplyr::mutate_if(is.numeric, funs(as.character(signif(., 3))))
+
+```
+
+- **Answer:**  The ANOVA test (p-value = 5.4e-148) suggests that the true mean of logged median earnings of working students ten years after enrollment are indeed different from level to level.
+
+
+e.  Why would we look at the log of mean earnings instead of the un-logged values?
+- **Answer:**  Because taking the log of a variable can help to normalize the distribution of the variable and, therefore, make it more suitable/readable for plotting and running analysis.
+
+
+
+6.  Median Earnings and Percentage of Women Undergraduates
+
+a.  Create the following plot as close as you can.
+
+```{r}
+
+  ggplot(coll_scorecd2, mapping = aes(x = UGDS_WOMEN,
+                                      y = MD_EARN_WNE_P10
+                                     )) +
+    geom_point(alpha = 0.3) +
+  
+    scale_y_log10() +  
+
+    geom_smooth(se = FALSE, linetype = "solid", linewidth = 1.0, colour = "blue") +
+  
+    geom_smooth(se = FALSE, method = lm, linetype = "dashed", linewidth = 1.0, colour = "blue") +
+
+    xlab("Percentage Enrollment of Women Undergraduates") +
+    ylab("Log (10) of Median Earnings") +
+
+    ggtitle(label = "Log of Median Earnings by Percentage of Women Undergraduates",
+          subtitle = "10 years after enrollment at Level 1 institutions") +
+   
+    labs(caption = "USDOE College Scoreboard Data 6/13/2024") +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(size = 10, hjust = 0.5)
+        )
+
+```
+
+
+b.  Pose the question you think the plot might answer and interpret the plot to answer the question. What are the implications for school administrators or for applicants?
+- **Answer:**  How is median earnings related to percentage of women undergraduates?
+- **Answer:**  The plot above shows that most data is clustered at about 60 percent of women enrollment and that earnings is also at an average mark. It doesn't show a very clear relationship.
+
+
+c.  Show the `INSTNM`, `INSTURL`, `RELAFFIL`, and `UGDS_WOMEN` for only schools with either 0% or 100% for `UGDS_WOMEN` sorted by ascending `UGDS_WOMEN` then `INSTNM`. There should be 39 schools. What do you notice?
+    -   Note: `RELAFFIL` of 30 is Roman Catholic, 66 is Presbyterian Church (USA), 71 is United Methodist, and 80 is Jewish.
+INSTNM: Institution name
+INSTURL: URL for institution’s homepage
+RELAFFIL: Religious affiliation of the institution
+UGDS_WOMEN: Percent of female undergraduates
+
+```{r}
+
+coll_scorecd2 %>%
+#  filter(!is.na(RELAFFIL)) %>% 
+  select(INSTNM, INSTURL, RELAFFIL, UGDS_WOMEN) %>%
+  filter(UGDS_WOMEN == 0, UGDS_WOMEN == 1) %>% 
+  arrange(UGDS_WOMEN, INSTNM) 
+
+```
+
+- **Answer:**  Unfortunately, I couldn't find the 39 observations suggested. I only found 27 or 75 observations with percentage of women enrollment either equal to 0% or 100%.
+- **Answer:**  I noticed that the schools selected are all or most religious schools and some are more sex oriented school such as boys only or girls only schools.
+
+
+d.  To minimize extreme value effects, filter to choose schools where `UGDS_WOMEN` is greater than 10% and less than 90% and reproduce the plot.
+    -   Extra Credit: Add points and labels for American University (colored red) and the Massachusetts Institute of Technology (colored green) such that the points will automatically adjust with new data.
+
+```{r}
+
+coll_scorecd2 %>%
+  filter(UGDS_WOMEN > 0.1 & UGDS_WOMEN < 0.9) %>% 
+  
+  ggplot(mapping = aes(x = UGDS_WOMEN,
+                       y = MD_EARN_WNE_P10
+                       )) +
+    geom_point(alpha = 0.3) +
+  
+    scale_y_log10() +  
+
+    geom_smooth(se = FALSE, linetype = "solid", linewidth = 1.0, colour = "blue") +
+  
+   geom_smooth(se = FALSE, method = lm, linetype = "dashed", linewidth = 1.0, colour = "blue") +
+
+    xlab("Percentage Enrollment Women Undergraduates") +
+    ylab("Log(10) Median Earnings") +
+  
+    ggtitle(label = "Log of Median Earnings by Percentage of Women Undergraduates",
+          subtitle = "10 years after enrollment at Level 1 institutions with between 10% and 90% women students") +
+   
+    labs(caption = "USDOE College Scoreboard Data 6/13/2024") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+e.  What do you notice? What questions does this plot raise for you?
+- **Answer:**  A slight negative linear association between median earnings and percentage of women undergraduates.
+
+
+f.  Filter out the schools with `UGDS_WOMEN` less than 10% or greater than 90% and use `lm()` to run a linear model and use `summary()` on the results
+
+```{r}
+coll_scorecd2 %>%
+  filter(UGDS_WOMEN > 0.1 & UGDS_WOMEN < 0.9) -> coll_scorecd2_W10to90
+
+lm_model2 = lm(data = coll_scorecd2_W10to90, formula = log(MD_EARN_WNE_P10) ~ UGDS_WOMEN)
+
+summary(lm_model2)
+```
+
+g.   Interpret the results compared to the plot using the sign of the coefficient for `UGDS_WOMEN`, and the model $p$-value and adjusted R-squared.
+
+- **Answer:** The model is statistically significant at a p-value = 2e-16. However, the R-squared (0.01526) suggests that the percentage of women undergraduate explains very little the predictability of future median earnings. However, the coefficient of percetage of women undergraduates is significant (p-value = 5.21e-11) and negatively correlated to average median earnings, as suggested by the plot above.
+
+
+
+7.  Median Earnings and Race/Ethnicity
+
+a.  Create the following plot as close as you can. 
+    - Hint: consider what shape the data should be in to generate the plot. 
+    - Use `geom_vline(xintercept = .36, color = "red", lty = 3)` to add the vertical line  representing the maximum 90^th^ percentile across all categories but White.
+
+```{r}
+coll_scorecd2 %>%
+  filter(ICLEVEL == 1) %>% 
+  select(ICLEVEL, MD_EARN_WNE_P10, UGDS_AIAN, UGDS_ASIAN, UGDS_BLACK, UGDS_HISP, UGDS_NHPI, UGDS_WHITE) %>%
+  pivot_longer(cols = c(UGDS_AIAN, UGDS_ASIAN, UGDS_BLACK, UGDS_HISP, UGDS_NHPI, UGDS_WHITE),
+               names_to = "Race",
+               values_to = "Race_Percent",
+               names_prefix = "UGDS_") -> question7_data
+
+
+question7_data %>% 
+  mutate(race_fct = fct_recode(Race, "American Indian/Alaska Native" = "AIAN",
+                                     "Asian" = "ASIAN",
+                                     "Black" = "BLACK",
+                                     "Hispanic" = "HISP",
+                                     "Native Hawaiian/Pacific Islander" = "NHPI",
+                                     "White" = "WHITE")
+         ) -> question7_data2
+glimpse(question7_data2)
+
+
+question7_data2 %>%
+  ggplot(mapping = aes(x = Race_Percent,
+                       y = MD_EARN_WNE_P10,
+                       color = race_fct)) +
+  
+  scale_x_log10() +
+  scale_y_log10() +
+  
+  geom_smooth(se = FALSE) +
+  geom_smooth(se = FALSE, method = lm, linetype = "dashed") +
+  geom_vline(xintercept = .90, color = "red", lty = 6) +
+  
+  xlab("Percentage Enrollment by Race/Ethnicity (Log Scale)") +
+  ylab("Median Earnings (Log Scale)") +
+
+  ggtitle(label = "Median Earnings by Percentage of Race Category",
+          subtitle = "Students who are working 10 years after enrollment at Level 1 institutions") +
+  
+  labs(colour = "Race", caption = "USDOE College Scoreboard Data, 6/13/2024") +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(size = 8, hjust = 0.5)
+        )
+
+```
+
+b.  Pose the question you think the plot might answer and interpret the plot to answer the question.
+- **Answer:** How does race affect median earnings ten years after enrollment?
+- **Answer:** The plot shows that percentage of enrollment by race does seem to have an impact, either positive or negative, on median earnings 10 years after enrollment. For instance, institutions with a low enrollment percentage of American Indians or Alaska Native seem to have students with higher median earnings in the future and vice-versa. Also, Institutions with higher percentages of Asian enrollment, seem to have higher median earnings in the future.
+
+c.  What are the ethical implications of using either the linear smoother or the non-linear smoother in these plots to "prove a point"? Which would you recommend and why?
+- **Answer:** The non-linear smoother can be more harsh on the interpretation of the plot since it follows the data distribution without making an over consideration. The linear smoother takes into consideration the variability of the data distribution and, therefore, seems to be more appropriate for studying and interpreting the results. 
+- **Answer:** I would recommend the linear smoother model.
+
+8.  Rankings Based on Student Debt and Annual Cost to Attend (Debt/Cost Ratio (DCR))
+
+a.  Filter the data to only l`ICLEVEL` 1 with no `NA`s for `COSTT4_A` or `GRAD_DEBT_MDN`. Also remove any satellite campuses using `filter(str_detect(OPEID, "......00"))`. That should leave 1,701 rows.
+
+b.  Add a variable called `DCR` based on the ratio of median earnings 10 years after enrollment to median graduation debt at graduation.
+
+c.  Use a {dplyr} integer ranking function to compute a ranking using `DCR`. Break any ties using the smallest value and leaving a gap to the next untied DCR such that if two schools are tied for 4th, they are each ranked 4 and the next school is 6. This is similar to many sports rankings.
+
+```{r}
+coll_scorecd2 %>%
+  filter(ICLEVEL == 1 & !is.na(COSTT4_A) & !is.na(GRAD_DEBT_MDN)) %>% 
+  filter(str_detect(OPEID, "......00")) %>% 
+  mutate(DCR = MD_EARN_WNE_P10/GRAD_DEBT_MDN, DCR_rank = min_rank(DCR)) -> question8_data
+glimpse(question8_data)
+```
+
+
+
+d.  Identify the top 5 best (lowest DCR should be rank value 1) and the bottom 5 worst (largest DCR should have largest rank number). Show only the rank, name, DCR, cost to attend, median debt at graduation, and median earnings 10 years after enrollment.
+
+```{r}
+question8_data %>% 
+  slice_min(DCR_rank, n=5) %>% 
+  select(INSTNM, DCR_rank, DCR, COSTT4_A, GRAD_DEBT_MDN, MD_EARN_WNE_P10) -> question8_data_best
+
+question8_data %>% 
+  slice_max(DCR_rank, n=5) %>% 
+  select(INSTNM, DCR_rank, DCR, COSTT4_A, GRAD_DEBT_MDN, MD_EARN_WNE_P10) -> question8_data_worst
+
+best_worst_coll = rbind(question8_data_best, question8_data_worst)
+best_worst_coll
+```
+
+
+e.  What is American University's rank and DCR? Show only the rank, name, DCR, cost to attend, median debt at graduation, and median earnings 10 years after enrollment.
+
+```{r}
+question8_data %>% 
+  filter(INSTNM == "American University") %>% 
+  select(INSTNM, DCR_rank, DCR, COSTT4_A, GRAD_DEBT_MDN, MD_EARN_WNE_P10)
+
+```
+
+
+f.  Extra Credit: Reproduce the following plot so the *AU line and number of institutions automatically adjust as new data is entered*. Use `ggthemes::clean()`.
+
+
+
+# World Bank Data
+
+The World Bank provides loans to countries with the goal of reducing poverty. The data frames in the data folder were taken from the public data repositories of the [World Bank Group DataBank](https://databank.worldbank.org/home). The fertility, life expectancy, and population data are from its [World Development Indicators (WDI)](https://databank.worldbank.org/source/world-development-indicators) as of 1 August 2024.
+
+-   `wb_country_income_classification_2023.csv`: Contains information on the countries in the data set. Also includes totals for the regions (sets of countries) and the world. Source is [World Bank Country and Lending Groups](https://datahelpdesk.worldbank.org/knowledgebase/articles/906519-world-bank-country-and-lending-groups). The variables are: see HTML file
+
+
+1.  Use a relative path and a {readr} function to load each of these four files into its own tibble. *Be sure to look at the data after loading to ensure it loaded as expected, without problems, and fix any problems using {readr} function arguments.* Consider using the `problems()` function to identify the locations of any problems.
+    - Note: `wb_country_income_classification_2023` has a row of all `NA`s between the countries and the collective economies such as regions. The argument `skip_empty_rows` defaults to `TRUE` but, since there are commas in the file, the row is not counted as "empty."
+    - Note: Some countries have `NA` for missing data for the early years but have values in the later years which is not a problem. 
+    - There should be a maximum of 267 rows for the country data and 266 rows for each of the WDI data files.
+
+```{r}
+
+wd_country_income <- read_csv("../data/wb_country_income_classification_2023.csv", 
+                              col_names = TRUE, 
+                              na = c("NA", "..", ""), 
+                              skip_empty_rows = TRUE, 
+                              n_max = 267)
+
+wd_fertility <- read_csv("../data/wb_fertility_2022.csv", 
+                         col_names = TRUE, 
+                         na = c("NA", "..", ""), 
+                         skip_empty_rows = TRUE, 
+                         n_max = 266)
+
+wd_life_exp <- read_csv("../data/wb_life_exp_2022.csv", 
+                        col_names = TRUE, 
+                        na = c("NA", "..", ""), 
+                        skip_empty_rows = TRUE, 
+                        n_max = 266)
+
+wd_pop <- read_csv("../data/wb_pop_2023.csv", 
+                   col_names = TRUE, 
+                   na = c("NA", "..", ""), 
+                   skip_empty_rows = TRUE, 
+                   n_max = 266)
+
+```
+
+
+2. Use `anti_join()` to show which codes are in the country data but not in the population data and which country codes are in population data but not in the country data.  What do you notice?
+
+```{r}
+
+glimpse(wd_country_income)
+glimpse(wd_fertility)
+glimpse(wd_life_exp)
+glimpse(wd_pop)
+
+names(wd_country_income) <- c("economy"	,
+                              "country_code"	,
+                              "region" ,
+                              "income_group" ,
+                              "lending_category")
+glimpse(wd_country_income)
+
+names(wd_fertility) <- c("series_name",
+                   "series_code",
+                   "country_name",
+                   "country_code",
+                   "YR_1960"	,
+                   "YR_1961"	,
+                   "YR_1962"	,
+                   "YR_1963"	,
+                   "YR_1964"	,
+                   "YR_1965"	,
+                   "YR_1966"	,
+                   "YR_1967"	,
+                   "YR_1968"	,
+                   "YR_1969"	,
+                   "YR_1970"	,
+                   "YR_1971"	,
+                   "YR_1972"	,
+                   "YR_1973"	,
+                   "YR_1974"	,
+                   "YR_1975"	,
+                   "YR_1976"	,
+                   "YR_1977"	,
+                   "YR_1978"	,
+                   "YR_1979"	,
+                   "YR_1980"	,
+                   "YR_1981"	,
+                   "YR_1982"	,
+                   "YR_1983"	,
+                   "YR_1984"	,
+                   "YR_1985"	,
+                   "YR_1986"	,
+                   "YR_1987"	,
+                   "YR_1988"	,
+                   "YR_1989"	,
+                   "YR_1990"	,
+                   "YR_1991"	,
+                   "YR_1992"	,
+                   "YR_1993"	,
+                   "YR_1994"	,
+                   "YR_1995"	,
+                   "YR_1996"	,
+                   "YR_1997"	,
+                   "YR_1998"	,
+                   "YR_1999"	,
+                   "YR_2000"	,
+                   "YR_2001"	,
+                   "YR_2002"	,
+                   "YR_2003"	,
+                   "YR_2004"	,
+                   "YR_2005"	,
+                   "YR_2006"	,
+                   "YR_2007"	,
+                   "YR_2008"	,
+                   "YR_2009"	,
+                   "YR_2010"	,
+                   "YR_2011"	,
+                   "YR_2012"	,
+                   "YR_2013"	,
+                   "YR_2014"	,
+                   "YR_2015"	,
+                   "YR_2016"	,
+                   "YR_2017"	,
+                   "YR_2018"	,
+                   "YR_2019"	,
+                   "YR_2020"	,
+                   "YR_2021"	,
+                   "YR_2022"	,
+                   "YR_2023")
+glimpse(wd_fertility)
+
+names(wd_life_exp) <- c("series_name",
+                   "series_code",
+                   "country_name",
+                   "country_code",
+                   "YR_1960"	,
+                   "YR_1961"	,
+                   "YR_1962"	,
+                   "YR_1963"	,
+                   "YR_1964"	,
+                   "YR_1965"	,
+                   "YR_1966"	,
+                   "YR_1967"	,
+                   "YR_1968"	,
+                   "YR_1969"	,
+                   "YR_1970"	,
+                   "YR_1971"	,
+                   "YR_1972"	,
+                   "YR_1973"	,
+                   "YR_1974"	,
+                   "YR_1975"	,
+                   "YR_1976"	,
+                   "YR_1977"	,
+                   "YR_1978"	,
+                   "YR_1979"	,
+                   "YR_1980"	,
+                   "YR_1981"	,
+                   "YR_1982"	,
+                   "YR_1983"	,
+                   "YR_1984"	,
+                   "YR_1985"	,
+                   "YR_1986"	,
+                   "YR_1987"	,
+                   "YR_1988"	,
+                   "YR_1989"	,
+                   "YR_1990"	,
+                   "YR_1991"	,
+                   "YR_1992"	,
+                   "YR_1993"	,
+                   "YR_1994"	,
+                   "YR_1995"	,
+                   "YR_1996"	,
+                   "YR_1997"	,
+                   "YR_1998"	,
+                   "YR_1999"	,
+                   "YR_2000"	,
+                   "YR_2001"	,
+                   "YR_2002"	,
+                   "YR_2003"	,
+                   "YR_2004"	,
+                   "YR_2005"	,
+                   "YR_2006"	,
+                   "YR_2007"	,
+                   "YR_2008"	,
+                   "YR_2009"	,
+                   "YR_2010"	,
+                   "YR_2011"	,
+                   "YR_2012"	,
+                   "YR_2013"	,
+                   "YR_2014"	,
+                   "YR_2015"	,
+                   "YR_2016"	,
+                   "YR_2017"	,
+                   "YR_2018"	,
+                   "YR_2019"	,
+                   "YR_2020"	,
+                   "YR_2021"	,
+                   "YR_2022"	,
+                   "YR_2023")
+glimpse(wd_life_exp)
+
+names(wd_pop) <- c("series_name",
+                   "series_code",
+                   "country_name",
+                   "country_code",
+                   "YR_1960"	,
+                   "YR_1961"	,
+                   "YR_1962"	,
+                   "YR_1963"	,
+                   "YR_1964"	,
+                   "YR_1965"	,
+                   "YR_1966"	,
+                   "YR_1967"	,
+                   "YR_1968"	,
+                   "YR_1969"	,
+                   "YR_1970"	,
+                   "YR_1971"	,
+                   "YR_1972"	,
+                   "YR_1973"	,
+                   "YR_1974"	,
+                   "YR_1975"	,
+                   "YR_1976"	,
+                   "YR_1977"	,
+                   "YR_1978"	,
+                   "YR_1979"	,
+                   "YR_1980"	,
+                   "YR_1981"	,
+                   "YR_1982"	,
+                   "YR_1983"	,
+                   "YR_1984"	,
+                   "YR_1985"	,
+                   "YR_1986"	,
+                   "YR_1987"	,
+                   "YR_1988"	,
+                   "YR_1989"	,
+                   "YR_1990"	,
+                   "YR_1991"	,
+                   "YR_1992"	,
+                   "YR_1993"	,
+                   "YR_1994"	,
+                   "YR_1995"	,
+                   "YR_1996"	,
+                   "YR_1997"	,
+                   "YR_1998"	,
+                   "YR_1999"	,
+                   "YR_2000"	,
+                   "YR_2001"	,
+                   "YR_2002"	,
+                   "YR_2003"	,
+                   "YR_2004"	,
+                   "YR_2005"	,
+                   "YR_2006"	,
+                   "YR_2007"	,
+                   "YR_2008"	,
+                   "YR_2009"	,
+                   "YR_2010"	,
+                   "YR_2011"	,
+                   "YR_2012"	,
+                   "YR_2013"	,
+                   "YR_2014"	,
+                   "YR_2015"	,
+                   "YR_2016"	,
+                   "YR_2017"	,
+                   "YR_2018"	,
+                   "YR_2019"	,
+                   "YR_2020"	,
+                   "YR_2021"	,
+                   "YR_2022"	,
+                   "YR_2023")
+glimpse(wd_pop)
+
+#shows only what is in x and not in y.
+anti_join(wd_country_income, wd_pop, by = "country_code") 
+
+anti_join(wd_pop, wd_country_income, by = "country_code") 
+
+```
+
+- **Answer:** I noticed the country Taiwan in only on the country data, but not in the population data. Also, the country code "INX" is present only in the population data, but not in the country data. 
+
+
+
+3.  These data are messy. The observational units in `fert`, `life`, and `pop` are locations in space-time (e.g., Aruba in 2020). Recall that "tidy" data should have one observational unit per row.
+
+-   Using only two function calls for each data frame, tidy each data frame to have only four variables by:
+    1.  Removing the `Indicator Name` and `Indicator Code` columns.
+    2.  Using a {tidyr} function to tidy the tibble, and, by using an argument of the function and a {readr} function ensure the variable for `year` is a numeric. Recall, {readr} parsing functions can "fix" many parsing errors automatically. There should be no need to use a `mutate()` function.
+    3. Given the many `NA`s, remove them using an argument of the {tidyr} function.
+    4.  Save each tidy tibble to a new name. 
+    5. You should have four columns in each with 16,124, 16,137, and 16,930 rows based on the different numbers of `NA`s in the original tibbles. The `INX` country code had all `NA`s for each year so it should be gone as well.
+    - Show the first 6 rows for each tibble.
+
+```{r}
+
+wd_fertility %>% 
+  select(-series_name, -series_code) %>%
+  
+  pivot_longer(cols = c(starts_with("YR")),
+                        names_to = "year",
+                        values_to = "fertility_rate",
+                        names_prefix = "YR_",
+                        values_drop_na = TRUE,
+                        names_transform = list(year = as.double)
+                        ) -> wd_fertility_long
+glimpse(wd_fertility_long)  
+  
+  
+wd_life_exp %>% 
+  select(-series_name, -series_code) %>%
+  
+  pivot_longer(cols = c(starts_with("YR")),
+                        names_to = "year",
+                        values_to = "life_exp",
+                        names_prefix = "YR_",
+                        values_drop_na = TRUE,
+                        names_transform = list(year = as.double)
+                        ) -> wd_life_exp_long
+glimpse(wd_life_exp_long)  
+
+
+wd_pop %>% 
+  select(-series_name, -series_code) %>%
+  
+  pivot_longer(cols = c(starts_with("YR")),
+                        names_to = "year",
+                        values_to = "pop_total",
+                        names_prefix = "YR_",
+                        values_drop_na = TRUE,
+                        names_transform = list(year = as.double)
+                        ) -> wd_pop_long
+glimpse(wd_pop_long)
+  
+  
+```
+
+
+4.  Combine tibbles.
+
+a. Using a {dplyr} join function, *join* the three WDI tidy tibbles you just created into a single tibble. Start with the population data and then join fertility data and then join the life_expectancy data. 
+    - It should have six columns and 16,930 rows.
+```{r}
+
+wd_database = full_join(wd_pop_long, wd_fertility_long, by = c("country_name", "country_code", "year"))
+
+wd_database2 = full_join(wd_database, wd_life_exp_long, by = c("country_name", "country_code", "year"))
+
+glimpse(wd_database2)
+
+```
+    
+b. Then use a {dplyr} join function to add the data from the country tibble in a way that does not add any countries from the country data that have no data in the joined tibble. Save the resulting tibble to a new name and show the structure of the saved tibble.
+    -   The new tibble should now have 10 columns and 16,930 rows.
+    -   It should include the fertility rate, population, and life expectancy for each year as well as the `Economy`,`Region`, `IncomeGroup`, and `LendingGroup`.
+
+```{r}
+
+wd_database3 = left_join(wd_database2, wd_country_income, by = "country_code")
+glimpse(wd_database3)
+
+```
+
+
+5. Show just `Country Name` and `Economy` for the countries (rows with a non-`NA` value for `Region`) where the values in `Country Name` and `Economy` do not match each other. There should be five. What do you notice about they do not match?
+
+```{r}
+
+wd_database3 %>% 
+  filter(country_name != economy) %>% 
+  group_by(country_name, economy) %>% 
+  count()
+
+```
+
+- **Answer:** They are the same, except for the writing option of country name chosen. They would be expected to be the same because the county code was used to join the data. By the way, I found 10 names that don't match and not 5.
+
+
+
+6.  Fertility vs Life Expectancy over Time by Country and Region
+
+a. Make a single scatterplot with the following attributes:
+    1.  Use `drop_na()` to remove all `NA`s for the variables of interest and show fertility rate (Y) vs life expectancy (X) for Countries (i.e., rows where `Region` is not ``NA`).
+    2.  Color-code by `Region` and indicate the country population by size.
+    3.  Include only the years 1960, 1980, 2000, and 2020.
+    4.  Facet by these years.
+    5. Use with `scale_color_viridis_d()`.
+    6.  Your final plot should look like the below (Each element of the plot is graded).
+
+```{r}
+
+#sum(is.na(wd_database3$region))
+  
+wd_database3 %>%
+    filter(!is.na(region), (year == 1960 | year == 1980 | year == 2000 | year == 2020)) %>% 
+  
+    ggplot(mapping = aes(x = life_exp,
+                         y = fertility_rate,
+                         color = region, 
+                         size = pop_total
+                        )) +
+    geom_point(alpha = 0.5) +
+    
+    scale_color_viridis_d() +
+
+    facet_wrap( ~ year, ncol = 2) +
+
+    xlab("Life Expectancy") +
+    ylab("Fertility Rate") +
+
+    ggtitle(label = "Changes by Regions Across Decades") +
+
+    labs(caption = "World Bank Data", colour = "Region", size = "Population") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+b.  Interpret the plot in one sentence that address each variable.
+- **Answer:** Life expectancy seems to have overall increased in the world while fertility rate decreased over the decades, while population size increased overall. Also, the richest regions have much higher life expectancy compared to the poorest regions.
+
+
+
+7.  Regional Population
+
+a.  Use only Countries (`Region` is not `NA`) to calculate the total population for each region for each year.
+
+```{r}
+
+wd_database3 %>%
+  filter(!is.na(region)) %>%
+  group_by(region, year) %>% 
+  summarise(reg_pop_tot = sum(pop_total), .groups = "drop") -> reg_pop_total
+
+```
+
+
+
+b.  Make a line plot of calculated total population (Y) versus year (X), color-coding by region and using a *log scale* for Y. Use (`ggthemes::scale_color_colorblind`).
+    - Your final plot should look like the below 
+    
+```{r}
+
+reg_pop_total %>% 
+  
+    ggplot(mapping = aes(x = year,
+                         y = reg_pop_tot,
+                         color = region)) +
+  
+    geom_line(linetype = "solid", linewidth = 1.0) +
+  
+    theme_bw() +
+    
+    scale_color_colorblind() +
+
+    xlab("Total Population") +
+    ylab("Years") +
+
+    ggtitle(label = "Population by Years") +
+
+    labs(caption = "World Bank Data", colour = "Region") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+```
+    
+c.  Interpret the plot in one sentence to identify the two fastest growing regions.
+
+- **Answer:** The two fastest growing regions are East Asia and Pacific and Europe and Central Asia.
+
+
+8. Percentage population growth for the countries from 1960 to 2020 (Extra Credit)
+
+a. Make a box plot of the percentage population growth for the countries from 1960 to 2020 (the population in 2020 compared to 1960) with the following attributes.
+    1.  Use code to automatically order the Regions on the $y$-axis in **increasing** order of Region's total 1960 population.
+    2.  For any countries with negative growth, set it to .001.
+    3.  Add a red line at 100%.
+b.  Interpret the plot in one sentence to compare the percentage growth with the previous plot.
+
