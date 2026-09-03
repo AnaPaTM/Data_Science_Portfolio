@@ -29,5 +29,5 @@ Interactive Statistical Analysis Dashboard
 
 ## Technical Skills
 
-R | SAS | Python | SQL | Git/GitHub | Statistical Modeling |
+R | SAS | SQL | Git/GitHub | Statistical Modeling |
 Data Visualization | Shiny | R Markdown/Quarto
