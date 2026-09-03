@@ -1,0 +1,125 @@
+Variable Dictionary
+
+PWGTP 
+Numeric 5
+Person's weight
+1..9999   Integer weight of person
+
+ESR 
+Character 1
+Employment status recode
+b   N/A (less than 16 years old)
+1   Civilian employed, at work
+2   Civilian employed, with a job but not at work
+3   Unemployed
+4   Armed forces, at work
+5   Armed forces, with a job but not at work
+6   Not in labor force
+
+MAR 
+Character 1
+Marital status
+1   Married
+2   Widowed
+3   Divorced
+4   Separated
+5   Never married or under 15 years old
+
+MIG 
+Character 1
+Mobility status (lived here 1 year ago)
+b   N/A (less than 1 year old)
+1   Yes, same house (nonmovers)
+2   No, outside US and Puerto Rico
+3   No, different house in US or Puerto Rico
+
+SEX 
+Character 1
+Sex
+1   Male
+2   Female
+
+SCH 
+Character 1
+School enrollment
+b   N/A (less than 3 years old)
+1   No, has not attended in the last 3 months
+2   Yes, public school or public college
+3 .  Yes, private school or college or home school
+
+SCHG 
+Character 2
+Grade level attending
+bb   N/A (not attending school)
+01   Nursery school/preschool
+02   Kindergarten
+03   Grade 1
+04   Grade 2
+05   Grade 3
+06   Grade 4
+07   Grade 5
+08   Grade 6
+09   Grade 7
+10   Grade 8
+11   Grade 9
+12   Grade 10
+13   Grade 11
+14   Grade 12
+15   College undergraduate years (freshman to senior)
+16   Graduate or professional school beyond a bachelor's degree
+
+SCHL 
+Character 2
+Educational attainment
+bb   N/A (less than 3 years old)
+01   No schooling completed
+02   Nursery school, preschool
+03   Kindergarten
+04   Grade 1
+05   Grade 2
+06   Grade 3
+07   Grade 4
+08   Grade 5
+09   Grade 6
+10   Grade 7
+11   Grade 8
+12   Grade 9
+13   Grade 10
+14   Grade 11
+15   12th grade - no diploma
+16   Regular high school diploma
+17   GED or alternative credential
+18   Some college, but less than 1 year
+19   1 or more years of college credit, no degree
+20   Associate's degree
+21   Bachelor's degree
+22   Master's degree
+23   Professional degree beyond a bachelor's degree
+24   Doctorate degree
+
+
+AGEP 
+Numeric 2
+Age
+0 .Under 1 year
+1..99         1 to 99 years (Top-coded)
+
+HINCP 
+Numeric 7
+Household income (past 12 months, use ADJINC to adjust HINCP to 
+constant dollars)
+bbbbbbb      N/A (GQ/vacant)
+0                   No household income
+-59999          Loss of -$59,999 or more
+-59998..-1     Loss of $1 to -$59,998
+1..9999999    Total household income in dollars (Components are rounded)
+
+
+PINCP 
+Numeric 7
+Total person's income (use ADJINC to adjust to constant dollars)
+bbbbbbb         N/A (less than 15 years old)
+0                      None
+-19998             Loss of $19998 or more (Rounded and bottom-coded components)
+-19997..-1        Loss $1 to $19997 (Rounded components)
+1..4209995       $1 to $4209995 (Rounded and top-coded components)

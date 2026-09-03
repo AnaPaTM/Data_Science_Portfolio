@@ -1,0 +1,277 @@
+---
+title: "Mediation Analysis"
+author: "Uzoma Kanu, Ana Miranda, Jin Song"
+format: html
+editor: visual
+---
+
+### Mediation Analysis
+
+**Research Question**: Does educational attainment affect residential mobility through income?
+
+Statistical Model:
+
+- `SCHL` → `HINCP` → `MIG`
+
+# 1. API Querying
+
+```{r}
+# install.packages("censusapi")
+library(censusapi)
+library(dplyr)
+```
+
+```{r}
+# API Querying
+
+# Set your API key
+# census_api_key("3cce7088b8f22e761030408d58cb4ba0cb69e9c7", install = TRUE, overwrite = TRUE)
+Sys.setenv(CENSUS_API_KEY = "3cce7088b8f22e761030408d58cb4ba0cb69e9c7")
+
+# Define the endpoint and variables
+vars <- c("PWGTP", "ESR", "MAR", "MIG", "SEX", "SCH", 
+          "SCHG", "SCHL", "AGEP", "HINCP", "PINCP")
+
+# Fetch the data from ACS 2023 1-Year PUMS 
+data_all <- getCensus(
+  name = "acs/acs1/pums",
+  vintage = 2023,
+  vars = vars)
+```
+
+```{r}
+# Random Sampling
+
+# Set how many rows you want to sample (e.g., 100)
+sample_size <- 50000
+
+# Randomly sample the rows
+sampled_data <- data_all[sample(nrow(data_all), sample_size), ]
+
+# Save the data as csv
+write.csv(sampled_data, "./data/sample50.csv", row.names = FALSE)
+```
+
+# 2. Load Data
+
+```{r}
+#install.packages("mediation")
+#install.packages("interactions")
+library(tidyverse)
+library(mediation)
+library(lmtest)
+library(interactions)
+library(ggplot2)
+
+# Load data
+data <- read.csv("./data/sample50-1.csv")
+```
+
+```{r}
+# Convert variables to appropriate types
+data$SCHL <- as.numeric(as.character(data$SCHL))  # Educational Attainment
+data$MIG <- as.factor(data$MIG)                   # Mobility (categorical)
+data$HINCP <- as.numeric(as.character(data$HINCP))# Income
+
+# Filter out NA or irrelevant cases
+data_clean <- data %>%
+  filter(!is.na(SCHL), !is.na(MIG), !is.na(HINCP)) %>%
+  filter(MIG %in% c("1", "2", "3"))  # Only valid mobility codes
+```
+
+# 3. Mediation Analysis
+
+## Analysis 1. Continuous variables
+
+```{r}
+# Step 1: Mediator model
+med_model <- lm(HINCP ~ SCHL, data = data_clean)
+
+# Step 2: Outcome model with mediator
+out_model <- glm(MIG ~ SCHL + HINCP, data = data_clean, family = binomial())
+
+# Step 3: Mediation analysis
+med_results <- mediate(med_model, out_model, treat = "SCHL", mediator = "HINCP", boot = TRUE)
+summary(med_results)
+```
+
+### Sobel Test for continuous variables
+
+```{r}
+# adding Sobel test of significance of the indirect (mediation) effect.
+
+# Extract coefficients and standard errors
+a <- coef(summary(med_model))["SCHL", "Estimate"]
+sa <- coef(summary(med_model))["SCHL", "Std. Error"]
+
+b <- coef(summary(out_model))["HINCP", "Estimate"]
+sb <- coef(summary(out_model))["HINCP", "Std. Error"]
+
+# Sobel test statistic
+sobel_z <- (a * b) / sqrt(b^2 * sa^2 + a^2 * sb^2)
+
+# find Z critical value
+critical_z <- qnorm(p = 0.05 / 2, lower.tail = FALSE)
+
+# Two-tailed p-value
+p_value <- 2 * (1 - pnorm(abs(sobel_z)))
+
+cat("\nz-critica value =", round(critical_z, 2), "\nSobel z =", sobel_z, "\nP-value =", p_value, "\n")
+```
+
+## Analysis 2. Grouped variables
+
+```{r}
+data <- read.csv("sample50-1.csv")
+
+# Recode Mobility into binary
+data <- data %>%
+  mutate(MIG_bin = case_when(
+    MIG == 1 ~ 0,       # Non-mover
+    MIG %in% c(2, 3) ~ 1))
+
+data$MIG_bin <- as.numeric(data$MIG_bin)
+```
+
+```{r}
+# Recode Educational Attainment (Groups of Low, Medium, High)
+data <- data %>%
+  mutate(SCHL_bin = case_when(
+    SCHL >= 1 & SCHL <= 15 ~ "Low",
+    SCHL >= 16 & SCHL <= 20 ~ "Medium",
+    SCHL >= 21 & SCHL <= 24 ~ "High"))
+
+# Recode Income into quantiles
+quantiles <- quantile(data$HINCP, probs = c(0.33, 0.66), na.rm = TRUE)
+data <- data %>%
+  mutate(HINCP_bin = case_when(
+    HINCP <= quantiles[1] ~ "Low",
+    HINCP > quantiles[1] & HINCP <= quantiles[2] ~ "Medium",
+    HINCP > quantiles[2] ~ "High"))
+
+# Remove missing data
+data <- data %>% filter(!is.na(SCHL_bin), !is.na(HINCP_bin), !is.na(MIG_bin))
+
+# Convert to factors
+data$SCHL_bin <- factor(data$SCHL_bin, levels = c("Low", "Medium", "High"))
+data$HINCP_bin <- factor(data$HINCP_bin, levels = c("Low", "Medium", "High"))
+
+# Convert HINCP_bin to numeric for mediation
+data$SCHL_num <- as.numeric(data$SCHL_bin)
+data$HINCP_num <- as.numeric(data$HINCP_bin)
+```
+
+```{r}
+# Mediator model (Education → Income)
+med_model <- lm(HINCP_num ~ SCHL_num, data = data)
+
+# Outcome model (Education + Income → Mobility)
+out_model <- glm(MIG_bin ~ SCHL_num + HINCP_num, family = binomial(), data = data)
+
+# Mediation analysis
+set.seed(123)
+med_out <- mediate(med_model, out_model,
+                   treat = "SCHL_num", mediator = "HINCP_num", sims = 1000)
+summary(med_out)
+```
+
+```{r}
+plot(med_out) # Plot mediation effects
+```
+
+### Sobel Test for Grouped variables
+
+```{r}
+# adding Sobel test of significance of the indirect (mediation) effect.
+
+# Extract coefficients and standard errors
+a <- coef(summary(med_model))["SCHL_num", "Estimate"]
+sa <- coef(summary(med_model))["SCHL_num", "Std. Error"]
+
+b <- coef(summary(out_model))["HINCP_num", "Estimate"]
+sb <- coef(summary(out_model))["HINCP_num", "Std. Error"]
+
+# Sobel test statistic
+sobel_z <- (a * b) / sqrt(b^2 * sa^2 + a^2 * sb^2)
+
+# find Z critical value
+critical_z <- qnorm(p = 0.05 / 2, lower.tail = FALSE)
+
+# Two-tailed p-value
+p_value <- 2 * (1 - pnorm(abs(sobel_z)))
+
+cat("\nz-critica value =", round(critical_z, 2), "\nSobel z =", sobel_z, "\nP-value =", p_value, "\n")
+```
+
+- Interpretation of the Sobel significance test:
+
+  - A large absolute Sobel z-value, usually larger than the z-critical value, indicates mediation effect in significant at 0.05 level.
+  - In the example above, z = -20.40 and it is significant because it's larger than z-critical = 1.96.
+  - With a p-value = 0, we can reject the hull hypothesis that the indirect mediation effect is zero, meaning that there is a significant mediation effect.
+  - In conclusion: There is sufficient evidence of a significant indirect effect of schooling (SCHL) on migration status (MIG) through household income (HINCP), suggesting that education influences migration because it affects income.
+
+# 4. Moderation Analysis
+
+```{r}
+
+
+# Convert SEX to binary (0 = Male, 1 = Female)
+data_clean <- data_clean %>%
+  mutate(SEX = ifelse(SEX == 1, 0, 1)) 
+
+```
+
+```{r}
+
+
+# Updated mediator model with interaction
+med_model_mod <- lm(HINCP ~ SCHL * SEX, data = data_clean)
+
+# Outcome model remains unchanged
+out_model <- glm(MIG ~ SCHL + HINCP, 
+                data = data_clean, family = binomial())
+
+# Mediation analysis with moderation
+set.seed(123)
+med_out_mod <- mediate(med_model_mod, out_model,
+                      treat = "SCHL", mediator = "HINCP",
+                      boot = TRUE, sims = 1000)
+summary(med_out_mod)
+
+
+```
+
+```{r}
+
+
+# Mediator model remains unchanged
+med_model <- lm(HINCP ~ SCHL, data = data_clean)
+
+# Updated outcome model with interaction
+out_model_mod <- glm(MIG ~ SCHL + HINCP * SEX,
+                    data = data_clean, family = binomial())
+
+# Mediation analysis with moderation
+set.seed(123)
+med_out_mod <- mediate(med_model, out_model_mod,
+                      treat = "SCHL", mediator = "HINCP",
+                      boot = TRUE, sims = 1000)
+summary(med_out_mod)
+
+```
+
+```{r}
+
+library(interactions)
+
+# For a-path moderation
+interact_plot(med_model_mod, pred = SCHL, modx = SEX,
+             interval = TRUE, int.type = "confidence")
+
+# For b-path moderation
+interact_plot(out_model_mod, pred = HINCP, modx = SEX,
+             interval = TRUE, int.type = "confidence")
+
+
+
+```
