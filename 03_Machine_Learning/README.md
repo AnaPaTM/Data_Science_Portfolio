@@ -25,7 +25,7 @@ PC | PLS | LDA/QDA | KNN | Decision Trees | Support Vector Machines | Deep Learn
 
 ## Final Project 
 
-[Predicting Apprenticeship Outcomes](../03_Machine_Learning/Final_Project/Apprenticeship_Outcomes_Poster.pdf)
+[→ Predicting Apprenticeship Outcomes](../03_Machine_Learning/Final_Project/Apprenticeship_Outcomes_Poster.pdf)
 
 Our analysis focuses on two critical dimensions of apprenticeship outcomes: apprenticeship completion and
 apprentice exit wage. Developing models that determine which factors influence these outcomes will better
