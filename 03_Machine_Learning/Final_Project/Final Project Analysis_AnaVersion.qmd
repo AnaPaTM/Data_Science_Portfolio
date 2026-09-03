@@ -1,0 +1,1177 @@
+---
+title: "Final Project Analysis"
+subtitle: "DATA 627 - Statistical Machine Learning, Fall 2025"
+author: "Ana Paula Miranda"
+author2: "Andrew McPherson"
+date: today
+number-sections: true
+format:
+  html:
+    embed-resources: true
+    toc: true
+    theme: pulse
+    df_print: kable
+execute: 
+  warning: false
+---
+
+# Data Preparation
+
+## Libraries
+
+```{r libraries}
+#| message: false
+#| echo: fenced
+#| include: true
+library(tidyverse)
+library(forcats)
+library(lubridate)
+library(randomForestSRC)
+library(caret)
+library(class)
+library(boot)
+library(ggplot2)
+library(tree)
+options(scipen = 999)
+```
+
+## Set Seed
+
+```{r}
+myseed = 1234
+```
+
+
+## Load Data
+
+```{r load}
+df = read_csv("./data/apprentices_2018_2019.csv", col_types = cols())
+app = df
+
+glimpse(app)
+```
+
+## Transform Data
+
+```{r transformations}
+app = app %>% 
+  select(APPR_ID, 
+         MAJOR_GROUP_NAME, 
+         ONET_SOC_CD, 
+         NAICS_CD, 
+         APPR_STATUS_CD, 
+         START_DT, 
+         STARTING_WAGE, 
+         EXIT_WAGE_DT, 
+         EXIT_WAGE, 
+         EXPECT_COMPLETE_DT,
+         COMPLETION_EXT_DT, 
+         AGE_AT_START, 
+         SEX_CD, 
+         ETHNICITY_CD, 
+         EDUCATION_CD, 
+         RACE_CD, 
+         ASIAN_IND, 
+         AFRICAAMER_IND, 
+         NATHAWAI_IND, 
+         NATINDIAN_IND, 
+         W_IND, 
+         OCCUP_TYPE
+         ) %>% 
+  mutate(
+    
+  STARTING_WAGE = ifelse(STARTING_WAGE < 5.00, NA, STARTING_WAGE),
+  STARTING_WAGE = ifelse(STARTING_WAGE > 80, NA, STARTING_WAGE),
+
+  EXIT_WAGE = ifelse(EXIT_WAGE < 5.00, NA, EXIT_WAGE),
+  EXIT_WAGE = ifelse(EXIT_WAGE > 80, NA, EXIT_WAGE),
+
+
+  COMPLETION_EXT_DT = ifelse(COMPLETION_EXT_DT < START_DT, NA, COMPLETION_EXT_DT),
+  COMPLETION_EXT_DT = ifelse(COMPLETION_EXT_DT > as.Date("2025-06-30"), NA, COMPLETION_EXT_DT),
+  COMPLETION_EXT_DT = as.Date(COMPLETION_EXT_DT),
+
+# The Office of Apprenticeship defines successful completion as an apprentice completing their apprenticeship within 1 year of the expected completion date. Treating completion in this way allows OA to define a status for the apprentices who left their apprenticeship but did not have their status updated by their sponsor.   
+    
+  COMPLETION_DEADLINE = case_when(
+    EXPECT_COMPLETE_DT < START_DT ~ as.Date(NA),
+    TRUE ~ as.Date(EXPECT_COMPLETE_DT + years(1))
+),
+
+# From Data Dictionary Addendum. APPRENTICE_STATUS_CODE: Status of the Apprentice, this determines if an apprentice, is Active, Cancelled, New or Completed. CA = Cancelled, CO = Completed, RE = Registered, RI = Reinstated, SU = Suspended, TR = Transferred, RS = Restore Pending, UP = Update Pending/Registered, IC = Interim Completion Pending, RS=Restore Pending. 
+# Given data quality issues, we must be careful. We will treat an apprentice with CO as completed, and an apprentice with CA as cancelled. However, it is possible that a sponsor has not updated this field. Therefore we will also make a determination based on the value of completion date, since the presence of a completion date should be definitive as a completion event. 
+  
+  COMPLETION = case_when(
+    APPR_STATUS_CD == "CO" ~ "Y",
+    APPR_STATUS_CD == "CA" ~ "N",
+    is.na(COMPLETION_DEADLINE) ~ NA,
+    COMPLETION_DEADLINE > as.Date("2025-06-30") ~ NA, 
+    is.na(COMPLETION_EXT_DT) ~ "N",
+    COMPLETION_EXT_DT > COMPLETION_DEADLINE ~ "N",
+    COMPLETION_EXT_DT <= COMPLETION_DEADLINE ~ "Y"
+  ),
+  COMPLETION = as.factor(COMPLETION),
+  
+  MAJOR_GROUP_NAME = as.factor(MAJOR_GROUP_NAME),
+  APPR_STATUS_CD = as.factor(APPR_STATUS_CD), 
+  SEX_CD = as.factor(SEX_CD),
+  ETHNICITY_CD = as.factor(ETHNICITY_CD),
+  EDUCATION_CD = as.factor(EDUCATION_CD),
+  RACE_CD = as.factor(RACE_CD),
+  ASIAN_IND = as.factor(ASIAN_IND),
+  AFRICAAMER_IND = as.factor(AFRICAAMER_IND),
+  NATHAWAI_IND = as.factor(NATHAWAI_IND),
+  NATINDIAN_IND = as.factor(NATINDIAN_IND),
+  W_IND = as.factor(W_IND),
+  OCCUP_TYPE = as.factor(OCCUP_TYPE),
+  
+  AGE_AT_START = ifelse((AGE_AT_START < 14 | AGE_AT_START > 70), NA, AGE_AT_START),
+
+# 
+#   EDUCATION_CD_Rec = ifelse(is.na(EDUCATION_CD), "5", EDUCATION_CD),
+#   EDUCATION_CD_Rec = as.factor(EDUCATION_CD_Rec),
+# 
+#   SEX_CD_Rec = ifelse(is.na(SEX_CD), "3", SEX_CD),
+#   SEX_CD_Rec = as.factor(SEX_CD_Rec),
+
+  # ETHNICITY_CD_Rec = ifelse(is.na(ETHNICITY_CD), "3", ETHNICITY_CD),
+  # ETHNICITY_CD_Rec = as.factor(ETHNICITY_CD_Rec),
+  # 
+  # RACE_CD_Rec = ifelse(is.na(RACE_CD), "6", RACE_CD),
+  # RACE_CD_Rec = as.factor(RACE_CD_Rec),
+     
+  ) %>% 
+
+  relocate(COMPLETION_DEADLINE, .after = COMPLETION_EXT_DT)  %>% 
+  relocate(COMPLETION, .after = COMPLETION_DEADLINE)
+
+  
+glimpse(app)
+
+app = app %>% 
+  mutate(
+    RACE_CD = fct_recode(RACE_CD,
+                          "White" = "1",
+                          "Pacific Islander" = "2",
+                          "Black" = "3",
+                          "Asian" = "4",
+                          "Native American" = "5",
+                          "Not Provided" = "6",
+                          "Multi-Race" = "7"
+    ),
+    EDUCATION_CD = fct_recode(EDUCATION_CD,
+                              "Not High School graduate"  = "1",
+                              "9th to 12th grade, no diploma"  = "2",
+                              "GED"  = "3",
+                              "High School graduate (including equivalency)"  = "4",
+                              "Participant Did Not Self-Identify"  = "5",
+                              "Some College or Associate's degree"  = "6",
+                              "Bachelor's degree"  = "7",
+                              "Masters degree"  = "8",
+                              "Doctorate or Prof. degree"  = "9"
+    ),
+    ETHNICITY_CD = fct_recode(ETHNICITY_CD,
+                              "Hispanic or Latino"  = "1",
+                              "Non-Hispanic or Latino"  = "2",
+                              # "Did Not Self-Identify"  = "3",
+                              "Did Not Self-Identify"  = "9"
+    ),
+    SEX_CD = fct_recode(SEX_CD,
+                              "Male"  = "1",
+                              "Female"  = "2",
+                              # "Did Not Self-Identify"  = "3",
+                              "Did Not Self-Identify"  = "9"
+    )
+  )  
+
+glimpse(app)
+```
+
+## Re-coding Race Indicators and `MAJOR_GROUP_NAME`
+
+```{r}
+app_final_reg = app %>% 
+  mutate(
+    ASIAN_dummy = case_when(
+       ASIAN_IND == "1" ~ 1,
+       ASIAN_IND == "0" ~ 0,
+       ASIAN_IND == "2" ~ 0, 
+       ASIAN_IND == "9" ~ 9,
+       is.na(ASIAN_IND) ~ 9,
+       TRUE ~ NA),
+    
+    AFRICAAMER_dummy = case_when(
+       AFRICAAMER_IND == "1" ~ 1,
+       AFRICAAMER_IND == "0" ~ 0,
+       AFRICAAMER_IND == "2" ~ 0, 
+       AFRICAAMER_IND == "9" ~ 9,
+       is.na(AFRICAAMER_IND) ~ 9,
+       TRUE ~ NA),
+
+    NATHAWAI_dummy = case_when(
+       NATHAWAI_IND == "1" ~ 1,
+       NATHAWAI_IND == "0" ~ 0,
+       NATHAWAI_IND == "2" ~ 0, 
+       NATHAWAI_IND == "9" ~ 9,
+       is.na(NATHAWAI_IND) ~ 9,
+       TRUE ~ NA),
+
+    NATINDIAN_dummy = case_when(
+       NATINDIAN_IND == "1" ~ 1,
+       NATINDIAN_IND == "0" ~ 0,
+       NATINDIAN_IND == "2" ~ 0, 
+       NATINDIAN_IND == "9" ~ 9,
+       is.na(NATINDIAN_IND) ~ 9,
+       TRUE ~ NA),
+
+    WHITE_dummy = case_when(
+       W_IND == "1" ~ 1,
+       W_IND == "0" ~ 0,
+       W_IND == "2" ~ 0, 
+       W_IND == "9" ~ 9,
+       is.na(W_IND) ~ 9,
+       TRUE ~ NA),
+    
+    ASIAN_dummy = as.factor(ASIAN_dummy),
+    AFRICAAMER_dummy = as.factor(AFRICAAMER_dummy),
+    NATHAWAI_dummy = as.factor(NATHAWAI_dummy),
+    NATINDIAN_dummy = as.factor(NATINDIAN_dummy),
+    WHITE_dummy = as.factor(WHITE_dummy),
+    
+    ASIAN_dummy = fct_recode(ASIAN_dummy, 
+                             "Asian" = "1",
+                             "Non-Asian" = "0",
+                             "Did Not Self-Identify" = "9"
+    ),
+    AFRICAAMER_dummy = fct_recode(AFRICAAMER_dummy, 
+                                  "African American" = "1",
+                                  "Non-African American" = "0",
+                                  "Did Not Self-Identify" = "9"
+    ),
+    NATHAWAI_dummy = fct_recode(NATHAWAI_dummy, 
+                                "Native Hawaiian or Pacific Islander" = "1",
+                                "Non-Native Hawaiian or Pacific Islander" = "0",
+                                "Did Not Self-Identify" = "9"
+    ),
+    NATINDIAN_dummy = fct_recode(NATINDIAN_dummy, 
+                                 "American Indian or Alaska Native" = "1",
+                                 "Non-American Indian or Alaska Native" = "0",
+                                 "Did Not Self-Identify" = "9"
+    ),
+    WHITE_dummy = fct_recode(WHITE_dummy, 
+                             "White" = "1",
+                             "Non-White" = "0",
+                             "Did Not Self-Identify" = "9"
+    ),
+    MAJOR_GROUP_NAME = fct_recode(MAJOR_GROUP_NAME,
+                                  "STEM and Technical Professions" = "Architecture and Engineering Occupations",
+                                  "STEM and Technical Professions" = "Computer and Mathematical Occupations",
+                                  "STEM and Technical Professions" = "Life, Physical, and Social Science Occupations",
+                                  
+                                  "Trades and Manual Labor" = "Construction and Extraction Occupations",
+                                  "Trades and Manual Labor" = "Installation, Maintenance, and Repair Occupations",
+                                  "Trades and Manual Labor" = "Production Occupations",
+                                  "Trades and Manual Labor" = "Transportation and Material Moving Occupations",
+                                  "Trades and Manual Labor" = "Farming, Fishing, and Forestry Occupations",
+                                  
+                                  "Healthcare and Social Services" = "Healthcare Practitioners and Technical Occupations",
+                                  "Healthcare and Social Services" = "Healthcare Support Occupations",
+                                  "Healthcare and Social Services" = "Community and Social Service Occupations",
+                                  "Healthcare and Social Services" = "Personal Care and Service Occupations",
+                                  
+                                  "Education and Public Services" = "Educational Instruction and Library Occupations",
+                                  "Education and Public Services" = "Protective Service Occupations",
+                                  "Education and Public Services" = "Military Specific Occupations",
+                                  
+                                  "Business, Management and Office Support" = "Management Occupations",
+                                  "Business, Management and Office Support" = "Business and Financial Operations Occupations",
+                                  "Business, Management and Office Support" = "Office and Administrative Support Occupations",
+                                  
+                                  "Arts, Hospitality and Sales" = "Arts, Design, Entertainment, Sports, and Media Occupations",
+                                  "Arts, Hospitality and Sales" = "Food Preparation and Serving Related Occupations",
+                                  "Arts, Hospitality and Sales" = "Sales and Related Occupations",
+                                  "Arts, Hospitality and Sales" = "Building and Grounds Cleaning and Maintenance Occupations"
+    )
+      )
+
+
+# Suggestive Re-coding of MAJOR_GROUP_NAME into 6 broader categories below:
+# 1. STEM & Technical Professions: grouped occupations centered around science, technology, engineering, and mathematics.
+# 2. Trades & Manual Labor: grouped occupations around hands-on, skilled labor and physical work.
+# 3. Healthcare & Social Services: grouped roles focused on health, wellness, and social support.
+# 4. Education & Public Services: grouped jobs related to education, public safety, and government services.
+# 5. Business, Management & Office Support: grouped administrative, financial, and managerial roles.
+# 6. Arts, Hospitality & Sales: grouped creative, customer-facing, and service-oriented roles.
+
+
+app_final_reg = app_final_reg %>% 
+  select(
+    MAJOR_GROUP_NAME,
+    STARTING_WAGE   ,
+    EXIT_WAGE       ,  
+    COMPLETION      ,
+    AGE_AT_START    ,
+    OCCUP_TYPE      ,
+    EDUCATION_CD,
+    SEX_CD      ,
+    ETHNICITY_CD,
+    RACE_CD,
+    ASIAN_dummy     ,
+    AFRICAAMER_dummy,
+    NATHAWAI_dummy  ,
+    NATINDIAN_dummy ,
+    WHITE_dummy     
+      )
+
+app_final_reg_no_na <- na.omit(app_final_reg)
+
+table(app_final_reg$MAJOR_GROUP_NAME, useNA = "always")
+```
+
+# Data Exploration 
+
+## Qualitative Predictors
+
+### Examine Qualitative Predictors
+
+```{r}
+glimpse(app_final_reg %>% 
+  select(where(is.factor) | where(is.character)))
+```
+
+### Determine Number of Levels for Predictors
+
+```{r}
+app_final_reg %>%
+  select(where(is.factor), where(is.character)) %>%
+  sapply(nlevels)
+```
+### Qualitative Predictor Analysis
+
+#### MAJOR_GROUP_NAME
+
+##### Distribution
+
+```{r}
+app_final_reg %>%
+  count(MAJOR_GROUP_NAME) %>%
+  ggplot(aes(x = reorder(MAJOR_GROUP_NAME, n), y = n)) +
+  geom_col(fill = "maroon") +
+  coord_flip() +
+  labs(x = "Occupational Groups", y = "Count", title = "Distribution of Major Occupational Groups")
+```
+
+##### Relationship with Target Variables
+
+```{r}
+table(app_final_reg$MAJOR_GROUP_NAME, app_final_reg$COMPLETION)
+prop.table(table(app_final_reg$MAJOR_GROUP_NAME, app_final_reg$COMPLETION), margin = 1)
+```
+
+```{r}
+library(ggplot2)
+ggplot(app_final_reg, aes(x = MAJOR_GROUP_NAME, fill = COMPLETION)) +
+  geom_bar(position = "fill") +
+  labs(y = "Proportion Completed") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+##### Association Tests
+
+```{r}
+# Cramer's V Test
+vcd::assocstats(table(app_final_reg$MAJOR_GROUP_NAME, app_final_reg$COMPLETION))
+
+# Chi-square Test
+chisq.test(table(app_final_reg$MAJOR_GROUP_NAME, app_final_reg$COMPLETION))
+```
+
+:::{.callout-note}
+## Occupational Group Distribution
+The data suggests that Occupational group has a relationship with Completion status, with significant differences between factor levels. While the Cramer's V score is fairly low, the chi-square test has a very low p-value, indicating that the null hypothesis (that the two variables are independent) is unlikely. The large number of NA values present difficulties.
+:::
+
+#### COMPLETION
+
+```{r}
+app_final_reg %>%
+  count(COMPLETION) %>%
+  ggplot(aes(x = reorder(COMPLETION, n), y = n)) +
+  geom_col(fill = "maroon") +
+  coord_flip() +
+  labs(x = "Completion Status", y = "Count", title = "Distribution of Completion")
+```
+
+:::{.callout-note}
+## Completion Distribution
+The dataset is broadly split between apprentices who did and did not complete. There is a relatively low number of NAs, and many of these are meaningful (i.e. apprentices who are not expected to have completed yet.)
+:::
+
+#### SEX_CD
+
+```{r}
+app_final_reg %>%
+  count(SEX_CD) %>%
+  ggplot(aes(x = reorder(SEX_CD, n), y = n)) +
+  geom_col(fill = "maroon") +
+  coord_flip() +
+  labs(x = "Sex Code", y = "Count", title = "Distribution by Sex")
+```
+
+:::{.callout-note}
+## Sex Distribution
+The dataset is strongly skewed towards male participants. This may impact the results in some methods, particularly tree-based methods. These methods can disregard a variable if it doesn't have a strong overall influence on the dependent variable prediction. This can happen when the data is skewed, even when there is a significant difference between the classification outcomes between the variables.  
+:::
+
+#### ETHNICITY_CD
+
+```{r}
+app_final_reg %>%
+  count(ETHNICITY_CD) %>%
+  ggplot(aes(x = reorder(ETHNICITY_CD, n), y = n)) +
+  geom_col(fill = "maroon") +
+  coord_flip() +
+  labs(x = "Ethnicity Code", y = "Count", title = "Distribution by Ethnicity")
+```
+
+#### EDUCATION_CD
+
+```{r}
+app_final_reg %>%
+  count(EDUCATION_CD) %>%
+  ggplot(aes(x = reorder(EDUCATION_CD, n), y = n)) +
+  geom_col(fill = "maroon") +
+  coord_flip() +
+  labs(x = "Education Code", y = "Count", title = "Distribution by Education")
+```
+
+:::{.callout-note}
+## Education Distribution
+The data here is unbalanced, which should be considered when Education is included as a predictor. 
+:::
+
+#### OCCUP_TYPE
+
+```{r}
+app_final_reg %>%
+  count(OCCUP_TYPE) %>%
+  ggplot(aes(x = reorder(OCCUP_TYPE, n), y = n)) +
+  geom_col(fill = "maroon") +
+  coord_flip() +
+  labs(x = "Training Model Code", y = "Count", title = "Distribution by Training Model")
+```
+
+:::{.callout-note}
+## Training Model Distribution
+The Training Model code is dominated by NAs. Furthermore, Time-Based training models vastly outweigh Time-based and Hybrid. It may not be advisable to use this code as a predictor. However, some methods, such as random forest, manage NA values well, so we can explore whether to include it. 
+:::
+
+
+## Quantitative Predictors
+
+### Examine Quantitative Predictors
+
+```{r}
+glimpse(app_final_reg %>% 
+  select(where(is.numeric)))
+```
+
+#### Correlation Tests
+
+```{r}
+app_final_reg_no_na[, purrr::map_lgl(app_final_reg, is.numeric)] |> 
+  cor() |> round(2)
+
+corrr::correlate(app_final_reg[, purrr::map_lgl(app_final_reg, is.numeric)], quiet = TRUE) |> ggplot2::autoplot()
+```
+
+* **The Correlations**
+
+  * EXIT_WAGE vs STARTING_WAGE: Corr = 0.644*, indicating a strong positive correlation. Higher starting wages tend to lead to higher exit wages.
+
+  * EXIT_WAGE vs AGE_AT_START: Corr = -0.064*, suggesting a very weak negative correlation. Older age slightly associates with lower exit wages.
+  
+  * STARTING_WAGE vs AGE_AT_START: Corr = 0.032*, suggesting a very weak positive correlation. Essentially no meaningful correlation.
+
+
+
+#### Distributions
+
+##### STARTING_WAGE
+
+```{r}
+#| message: false
+#| warning: false
+library(scales)
+ggplot(app_final_reg, 
+       aes(x = STARTING_WAGE, y= after_stat(count/sum(count)))) +
+  geom_histogram(fill = "cornflowerblue", 
+                 color = "white") + 
+  labs(title="Apprentices Wage at Start", 
+       y = "Percent",
+       x = "Starting Wage") +
+  scale_y_continuous(labels = percent)
+```
+
+##### EXIT_WAGE
+
+```{r}
+#| message: false
+#| warning: false
+ggplot(app_final_reg, aes(x = EXIT_WAGE, y= after_stat(count/sum(count)))) +
+  geom_histogram(fill = "cornflowerblue", 
+                 color = "white") + 
+  labs(title="Apprentices Wage at Exit", 
+       y = "Percent",
+       x = "Exit Wage")  +
+  scale_y_continuous(labels = percent)
+```
+
+
+##### EXIT_WAGE by MAJOR_GROUP_NAME
+
+```{r}
+#| message: false
+#| warning: false
+library(ggthemes)
+ggplot(app_final_reg, aes(x = EXIT_WAGE)) +
+  geom_histogram() +
+  facet_wrap(~MAJOR_GROUP_NAME, ncol = 3) +
+  labs(title = " ",
+       x = " ") +
+  theme_fivethirtyeight()
+```
+
+
+##### AGE_AT_START
+
+```{r}
+#| message: false
+#| warning: false
+library(scales)
+ggplot(app_final_reg, 
+       aes(x = AGE_AT_START)) +
+  geom_histogram(fill = "cornflowerblue", 
+                 color = "white") + 
+  labs(title="Apprentices Staring Age", 
+       y = "Count",
+       x = "Age") +
+  scale_y_continuous()
+```
+
+* **The Distributions**
+
+  * STARTING_WAGE and EXIT_WAGE are similarly distributed. The distribution is right-skewed (positively skewed), meaning most apprentices start with relatively low wages, and only a few start at very high wages. The majority of starting wages fall between 10 and 30 dollars per hour.
+
+  * AGE_AT_START: Right-skewed distribution which then declines gradually, meaning most apprentices start young, and fewer start at older ages.
+The highest concentration of apprentices is between 20 and 35 years old. It shows that Apprenticeships primarily attract young adults, especially those in their early 20s. 
+
+
+
+# Analysis
+
+## Regression
+
+The objective of this study is to determine which features are the most relevant in predicting post-apprenticeship wage outcomes to potentially guide program designs and apprentice’s expectations regarding economic advancement. The purpose of this analysis is prediction, rather than inference.
+
+My research question is: Is it possible to predict post-apprenticeship wages using program attributes and apprentice demographics, including occupational group, training model, initial wage, age, gender, educational level, and race?
+
+### Data Set
+
+```{r}
+clean_data_wage_reg = drop_na(app_final_reg) %>% 
+  select(-ASIAN_dummy, -AFRICAAMER_dummy, -NATHAWAI_dummy, -NATINDIAN_dummy, -WHITE_dummy, -COMPLETION)
+glimpse(clean_data_wage_reg)
+```
+
+
+### Validation set with 70%/30% split
+
+```{r}
+n <- nrow(clean_data_wage_reg)
+set.seed(myseed)
+training_pct <- 0.7
+w_Z <- sample(1:n, floor(n*training_pct))
+reg_train <- clean_data_wage_reg[w_Z,]
+reg_test <- clean_data_wage_reg[-w_Z,]
+```
+
+
+### Multiple Linear Regression
+
+```{r}
+mlr_wage <- lm(EXIT_WAGE ~ STARTING_WAGE + AGE_AT_START + SEX_CD +
+               ETHNICITY_CD + EDUCATION_CD + RACE_CD + OCCUP_TYPE + MAJOR_GROUP_NAME,
+               reg_train)
+summary(mlr_wage)
+
+mlr_wage_predict = predict(mlr_wage, reg_test)
+mean((reg_test$EXIT_WAGE - mlr_wage_predict)^2)
+sqrt(mean((reg_test$EXIT_WAGE - mlr_wage_predict)^2))
+```
+
+#### Model Fit {-}
+
+Adjusted $R^2$ = 0.4449, so this model explains about 44.5% of the variance in exit wage, which is quite reasonable for wage data. For a dataset this large, n = 50,099, even modest effects become highly statistically significant - so effect size matters more than p-values.
+
+The residual standard error = 9.2, This means the prediction error for EXIT_WAGE is about $\pm 9.2$ wage units (dollars/hour).
+
+Test RMSE = 9.28, meaning that our out-of-sample mean squared error is very close to the training RSE, which indicates:
+
+* Very little overfitting.
+
+* The model generalizes well to new data.
+
+* The linear model is performing as expected.
+
+
+##### Key Predictors and Interpretation {-}
+
+* Starting wage: STARTING_WAGE ($\beta = 1.22$), is a strong predictor. For every one unit increase in starting wage, the exit wage increases by 1.22 dollars/hour, which can be considered a very large and meaningful effect. This alone drives much of the model’s predictive power, meaning that people tend to leave their job with a wage that is strongly associated to the wage they started with.
+
+* Age: AGE_AT_START ($\beta \approx -0.09$), has a small, but significant negative effect. Meaning that for each additional year of age decreases exit wage by approximately 9 cents. This is not a large practical impact, but statistically significant.
+
+* Sex, SEX_CD:
+
+  * Female workers ($\beta \approx -0.913$) have about $0.913 lower exit wage, all else equal, compared to males.
+
+
+* Ethnicity, ETHNICITY_CD:
+
+  * Non-Hispanic workers ($\beta \approx -0.63$) have about $0.63 lower exit wage, all else equal, compared to Hispanics.
+  
+  * The workers who did not self-identify an ethnicity ($\beta \approx -1.28$) have about $1.28 lower exit wage, all else equal, compared to Hispanics.
+
+
+* Education Effects, EDUCATION_CD, compared to the reference level - "Not High School graduate":
+
+  * GED: + $2.62
+
+  * High School graduate (including equivalency): + $1.70
+
+  * Some College or Associate's degree: + $1.74
+  
+  * Bachelor's degree: + $1.62 (not significant)
+
+  * Masters: + $2.57 (not significant)
+
+Higher education generally increases exit wages, but the significance and magnitude of such effect vary. It's probably due to job type differences or sample size issues within the categories.
+
+
+* Race, RACE_DC, compared to the reference level - "White":
+
+  * Black workers: − $2.46, with a strong negative difference in exit wage.
+
+  * Asian workers: + $1.61, with a strong positive difference in exit wage.
+
+  * Native American: + $1.32, with positive significant in exit wage.
+
+  * The other categories are not statistically meaningful.
+
+
+* Occupational type, OCCUP_TYPE, compared to the reference level - "Competency Based":
+
+  * Hybrid jobs: + $1.00
+
+  * Time-based jobs: + $1.09
+
+
+* Major occupational group, MAJOR_GROUP_NAME, compared to reference level - "STEM and Technical Professions". The following differences meaningfully impact exit wages. 
+
+  * Trades and Manual Labor: + $1.96, this is the strongest positive effect.
+
+  * Education and public services: − $2.97, this has a very strong negative effect in exit wage.
+
+  * Healthcare and Social Services: - $1.43.
+  
+
+##### Conclusion: {-}
+
+The multiple linear regression model explains about 45% of the variation in exit wages, with a residual prediction error of about +-9 dollars/hour and a test-set RMSE of 9.28, indicating strong generalization (predictive power) and minimal overfitting.
+
+* Starting wage is by far the strongest predictor, increasing exit wage by about $1.20 dollar/hour of starting wage. Age has a small negative effect.
+
+* Several demographic factors show statistically significant differences:
+
+* Females have lower exit wages (− $0.913),
+
+* Black workers earn less (− $2.46),
+
+* Asian workers earn more (+ $1.61),
+
+* Education levels also affect exit wages, with higher education generally increasing wages.
+
+* Occupational and major group categories also matter, with "Trades/Manual Labor roles" having the highest positive association and "Education/Public Service" jobs the most negative.
+
+Overall, the model captures meaningful patterns but leaves room for additional nonlinear or interaction effects to improve predictive accuracy. Next, I'll ML methods to capture more complex patterns in the data.
+
+
+```{r}
+library(broom)
+library(kableExtra)
+tidy_model <- tidy(mlr_wage)
+kable(tidy_model, format = "html") %>%
+  kable_styling("striped", full_width = F)
+
+```
+
+
+
+#### Check for multicollinearity - Variance Inflation Factor (VIF)
+
+```{r}
+library(car)
+vif(mlr_wage)
+``` 
+
+The VIF results show no evidence of multicollinearty between the predictor since all the adjusted GVIF values fall between 1.02 and 1.19 - far below any concerning threshold. This means that the coefficient estimates for this model are stable, the standard errors are reliable and that the interpretation of individual predictors is meaningful.
+
+### Model Selection
+
+#### Leave-One-Out Cross-Validation (LOOCV).
+
+I'm not going to run this analysis for this data set at this point because we have a large number of observations and the computer is able to handle it well. Further discussion may be necessary while talking into consideration other methods.
+
+```{r}
+# #| cache: true
+# library(boot)
+# loocv_wage_full = cv.glm(clean_data_wage_reg, mlr_wage_full)
+# loocv_wage_full$delta
+```
+
+
+#### k-Fold Cross-Validation
+
+* K = 15 
+
+```{r}
+#| cache: true
+library(boot)
+mlr_wage_full <- glm(EXIT_WAGE ~ STARTING_WAGE + AGE_AT_START + SEX_CD +
+                    ETHNICITY_CD + EDUCATION_CD + RACE_CD + OCCUP_TYPE + MAJOR_GROUP_NAME, data = clean_data_wage_reg)
+
+set.seed(myseed)
+wage_reg_k15 <- cv.glm(clean_data_wage_reg, mlr_wage_full, K = 15)
+wage_reg_k15$delta
+```
+
+#### Finding the best least squares regression models, using adjusted R-squared, BIC, Mallow’s Cp criterias and Stepwise Variable Selection.
+
+```{r}
+library(leaps)
+#glimpse(reg_train)
+regsub_wage_full <- regsubsets(EXIT_WAGE ~ ., data = reg_train, nvmax = 25, really.big = T)
+mlr_wage_full_summary <- summary(regsub_wage_full)
+names(mlr_wage_full_summary)
+```
+
+##### Best Model based on adjusted R-squared {-}
+
+```{r}
+min_adjr2 <- which.max(mlr_wage_full_summary$adjr2)
+min_adjr2
+adjr2_best <- mlr_wage_full_summary$which[min_adjr2,][mlr_wage_full_summary$which[min_adjr2,] == TRUE][-1]
+names(adjr2_best)
+
+
+```
+```{r}
+reg_train_r2 = reg_train %>% 
+  mutate(
+    MAJOR_GROUP_NAME_ArtsHosp_ind = ifelse(MAJOR_GROUP_NAME == "Arts, Hospitality and Sales", 1, 0),
+    MAJOR_GROUP_NAME_healthSS_ind = ifelse(MAJOR_GROUP_NAME == "Healthcare and Social Services", 1, 0),
+    MAJOR_GROUP_NAME_tradeML_ind = ifelse(MAJOR_GROUP_NAME == "Trades and Manual Labor", 1, 0),
+    MAJOR_GROUP_NAME_EducPubServ_ind = ifelse(MAJOR_GROUP_NAME == "Education and Public Services", 1, 0),
+     MAJOR_GROUP_NAME_BisManSup_ind = ifelse(MAJOR_GROUP_NAME == "Business, Management and Office Support", 1, 0),
+   
+    OCCUP_TYPE_Hybrid_ind = ifelse(OCCUP_TYPE == "Hybrid", 1, 0),
+    OCCUP_TYPE_TimeBas_ind = ifelse(OCCUP_TYPE == "Time-Based", 1, 0),
+    
+    EDUCATION_CD_GED_ind = ifelse(EDUCATION_CD == "GED", 1, 0),
+    EDUCATION_CD_HSG_ind = ifelse(EDUCATION_CD == "High School graduate (including equivalency)", 1, 0),
+    EDUCATION_CD_SomeCol_ind = ifelse(EDUCATION_CD == "Some College or Associate's degree", 1, 0),
+    EDUCATION_CD_Bach_ind = ifelse(EDUCATION_CD == "Bachelor's degree", 1, 0),
+    
+    SEX_Female_ind = ifelse(SEX_CD == "Female", 1, 0),
+    
+    ETHNICITY_NonHispanic_ind = ifelse(ETHNICITY_CD == "Non-Hispanic or Latino", 1, 0),
+    ETHNICITY_Unknown_ind = ifelse(ETHNICITY_CD == "Did Not Self-Identify", 1, 0),
+
+    RACE_black_ind = ifelse(RACE_CD == "Black", 1, 0),
+    RACE_asian_ind = ifelse(RACE_CD == "Asian", 1, 0),
+    RACE_namer_ind = ifelse(RACE_CD == "Native American", 1, 0),
+  ) %>% 
+  select(EXIT_WAGE, STARTING_WAGE, AGE_AT_START, contains("_ind"))
+
+glimpse(reg_train_r2)
+
+reg_test_r2 = reg_test %>% 
+  mutate(
+    MAJOR_GROUP_NAME_ArtsHosp_ind = ifelse(MAJOR_GROUP_NAME == "Arts, Hospitality and Sales", 1, 0),
+    MAJOR_GROUP_NAME_healthSS_ind = ifelse(MAJOR_GROUP_NAME == "Healthcare and Social Services", 1, 0),
+    MAJOR_GROUP_NAME_tradeML_ind = ifelse(MAJOR_GROUP_NAME == "Trades and Manual Labor", 1, 0),
+    MAJOR_GROUP_NAME_EducPubServ_ind = ifelse(MAJOR_GROUP_NAME == "Education and Public Services", 1, 0),
+     MAJOR_GROUP_NAME_BisManSup_ind = ifelse(MAJOR_GROUP_NAME == "Business, Management and Office Support", 1, 0),
+   
+    OCCUP_TYPE_Hybrid_ind = ifelse(OCCUP_TYPE == "Hybrid", 1, 0),
+    OCCUP_TYPE_TimeBas_ind = ifelse(OCCUP_TYPE == "Time-Based", 1, 0),
+    
+    EDUCATION_CD_GED_ind = ifelse(EDUCATION_CD == "GED", 1, 0),
+    EDUCATION_CD_HSG_ind = ifelse(EDUCATION_CD == "High School graduate (including equivalency)", 1, 0),
+    EDUCATION_CD_SomeCol_ind = ifelse(EDUCATION_CD == "Some College or Associate's degree", 1, 0),
+    EDUCATION_CD_Bach_ind = ifelse(EDUCATION_CD == "Bachelor's degree", 1, 0),
+    
+    SEX_Female_ind = ifelse(SEX_CD == "Female", 1, 0),
+    
+    ETHNICITY_NonHispanic_ind = ifelse(ETHNICITY_CD == "Non-Hispanic or Latino", 1, 0),
+    ETHNICITY_Unknown_ind = ifelse(ETHNICITY_CD == "Did Not Self-Identify", 1, 0),
+
+    RACE_black_ind = ifelse(RACE_CD == "Black", 1, 0),
+    RACE_asian_ind = ifelse(RACE_CD == "Asian", 1, 0),
+    RACE_namer_ind = ifelse(RACE_CD == "Native American", 1, 0),
+  ) %>% 
+  select(EXIT_WAGE, STARTING_WAGE, AGE_AT_START, contains("_ind"))
+
+glimpse(reg_test_r2)
+```
+
+
+
+```{r}
+mlr_wage_adjr2_best <- lm(EXIT_WAGE ~ ., data = reg_train_r2)
+summary(mlr_wage_adjr2_best)
+adjr2_predict = predict(mlr_wage_adjr2_best, reg_test_r2)
+mean((reg_test_r2$EXIT_WAGE - adjr2_predict)^2)
+```
+
+##### Best Model based on BIC: {-}
+
+```{r}
+round(mlr_wage_full_summary$bic, 0)
+max_BIC <- which.max(mlr_wage_full_summary$bic) # The worst by BIC
+min_BIC <- which.min(mlr_wage_full_summary$bic) # The best by BIC
+min_BIC
+mlr_wage_full_summary$which[min_BIC,][mlr_wage_full_summary$which[min_BIC,] == TRUE][-1]
+```
+
+```{r}
+mlr_wage_bic_best <- lm(EXIT_WAGE ~ . -MAJOR_GROUP_NAME_healthSS_ind - MAJOR_GROUP_NAME_ArtsHosp_ind -MAJOR_GROUP_NAME_BisManSup_ind
+                        -OCCUP_TYPE_Hybrid_ind -OCCUP_TYPE_TimeBas_ind -EDUCATION_CD_Bach_ind, data = reg_train_r2)
+summary(mlr_wage_bic_best)
+bic_predict = predict(mlr_wage_bic_best, reg_test_r2)
+mean((reg_test_r2$EXIT_WAGE - bic_predict)^2)
+```
+
+##### Best Model based on Mallow’s Cp {-}
+
+```{r}
+round(mlr_wage_full_summary$cp, 2)
+max_Cp <- which.max(abs(mlr_wage_full_summary$cp - 1:17)) # The worst by Cp - underfit so high bias.
+max_Cp <- which.min(abs(mlr_wage_full_summary$cp - 1:17)) # The best by Cp
+max_Cp
+names(mlr_wage_full_summary$which[max_Cp,][mlr_wage_full_summary$which[max_Cp,] == TRUE])[-1]
+```
+
+```{r}
+mlr_wage_cp_best <- lm(EXIT_WAGE ~ . -MAJOR_GROUP_NAME_healthSS_ind - MAJOR_GROUP_NAME_ArtsHosp_ind -MAJOR_GROUP_NAME_BisManSup_ind
+                       -EDUCATION_CD_Bach_ind, 
+                       data = reg_train_r2)
+summary(mlr_wage_cp_best)
+cp_predict = predict(mlr_wage_cp_best, reg_test_r2)
+mean((reg_test_r2$EXIT_WAGE - cp_predict)^2)
+```
+
+
+##### Best Model based on Stepwise Forward and Backward Selection {-}
+
+```{r}
+reg_null <- lm(EXIT_WAGE ~ 1, data = reg_train)
+```
+
+
+
+```{r}
+step_forward <- step(reg_null,
+                     scope = list(lower = reg_null, upper = mlr_wage),
+                     direction = "forward", 
+                     trace = 0)
+summary(step_forward)
+```
+
+
+```{r}
+step_outb <- step(mlr_wage, 
+                 scope = list(lower = reg_null, upper = mlr_wage),
+                 method = "backward", 
+                 trace = 0)
+summary(step_outb)
+```
+
+```{r}
+AIC(mlr_wage, step_outb, step_forward)
+```
+
+
+
+### Ridge Regression
+
+```{r}
+x_matrix <- model.matrix(mlr_wage_full)[, -1]
+dim(x_matrix)
+
+library(glmnet)
+
+set.seed(myseed)
+rr_cv <- cv.glmnet(x_matrix[w_Z,], y = reg_train$EXIT_WAGE, alpha = 0)
+rr_cv
+```
+
+```{r}
+plot(rr_cv)
+```
+
+```{r}
+coef(rr_cv)
+```
+
+```{r}
+Yhat_ridge <- predict(rr_cv, newx = x_matrix[-w_Z,], s = "lambda.min")
+mean((reg_test$EXIT_WAGE - Yhat_ridge)^2) |> round(3)
+```
+
+
+### LASSO Regression
+
+```{r}
+set.seed(myseed)
+lr_cv <- cv.glmnet(x_matrix[w_Z,], y = reg_train$EXIT_WAGE, alpha = 1)
+lr_cv
+```
+
+```{r}
+coef(lr_cv) 
+```
+
+```{r}
+library(vip)
+vip::vip(lr_cv)
+```
+
+```{r}
+Yhat_lasso <- predict(lr_cv, newx = x_matrix[-w_Z,], s = "lambda.min")
+mean((reg_test$EXIT_WAGE - Yhat_lasso)^2) |> round(3)
+```
+
+```{r}
+Yhat_lasso <- predict(lr_cv, newx = x_matrix[-w_Z,], s = "lambda.1se")
+mean((reg_test$EXIT_WAGE - Yhat_lasso)^2) |> round(3)
+```
+
+
+### PCR with K = 10 cross-validation
+
+
+```{r}
+library(pls)
+set.seed(myseed)
+pcrv_fit <- pcr(EXIT_WAGE ~ STARTING_WAGE + AGE_AT_START + SEX_CD + ETHNICITY_CD + RACE_CD + OCCUP_TYPE,
+                data = reg_train, scale = TRUE, validation = "CV", segments = 10)
+summary(pcrv_fit)
+```
+
+```{r}
+vip::vip(pcrv_fit)
+```
+
+```{r}
+opt_M <- which.min(pcrv_fit$validation$PRESS)
+opt_M
+```
+
+```{r}
+pcr_pred <- predict(pcrv_fit, reg_test, ncomp = opt_M)
+test_MSE <- mean((pcr_pred - reg_test$EXIT_WAGE)^2)
+test_MSE
+```
+
+
+### PLS with K = 10 cross-validation
+
+```{r}
+set.seed(myseed)
+plsrv_fit <- plsr(EXIT_WAGE ~ STARTING_WAGE + AGE_AT_START + SEX_CD + ETHNICITY_CD + RACE_CD + OCCUP_TYPE, 
+                  data = reg_train, scale = TRUE, validation = "CV", segments = 10)
+summary(plsrv_fit)
+```
+
+
+```{r}
+vip::vip(plsrv_fit)
+```
+
+
+```{r}
+opt_M <- which.min(plsrv_fit$validation$PRESS)
+opt_M
+```
+
+
+```{r}
+plsr_pred <- predict(plsrv_fit, reg_test, ncomp = opt_M)
+test_MSE <- mean((plsr_pred - reg_test$EXIT_WAGE)^2)
+test_MSE
+```
+
+
+### Regression Trees
+
+```{r}
+library(tree)
+glimpse(reg_train)
+tree_wage  <- tree(EXIT_WAGE ~ STARTING_WAGE + AGE_AT_START + OCCUP_TYPE + EDUCATION_CD + 
+                   SEX_CD + ETHNICITY_CD + RACE_CD + MAJOR_GROUP_NAME, 
+                   data = reg_train)
+tree_wage
+```
+
+
+```{r}
+summary(tree_wage)
+```
+
+
+```{r}
+plot(tree_wage)
+text(tree_wage)
+```
+
+
+```{r}
+tree_wage_pred = predict(tree_wage, newdata = reg_test)
+mean((tree_wage_pred - reg_test$EXIT_WAGE)^2)
+```
+
+#### Optimal tree based on cross-validation mean squared error
+
+```{r}
+set.seed(myseed)
+treem_cvm <- cv.tree(tree_wage)
+treem_cvm$dev |> round(0)
+
+treem_cvm$size[which.min(treem_cvm$dev)]
+```
+
+```{r}
+plot(treem_cvm)
+```
+
+The tree has 5 terminal nodes.
+
+The lowest total deviance is 3983000 and we can use it to estimate the accuracy of the tree: 3983000 / 44180 = 13.28. This value is a more reliable estimate of performance in predicting mpg with these four predictors.
+
+
+```{r}
+MSE = 2784473 / (30925 - 5)
+MSE
+```
+
+#### Random Forest
+
+* Results using the default model and parameters yield by the `randomForest` package.
+
+```{r}
+#| cache: true
+library(randomForest)
+set.seed(myseed)
+wage_rf <- randomForest(EXIT_WAGE ~ STARTING_WAGE + AGE_AT_START + OCCUP_TYPE + EDUCATION_CD + 
+                        SEX_CD + ETHNICITY_CD + RACE_CD + MAJOR_GROUP_NAME, 
+                        data = reg_train, importance = TRUE)
+wage_rf
+```
+
+
+```{r}
+Yhat_rf <-  predict(wage_rf, newdata = reg_test)
+mean((Yhat_rf - reg_test$EXIT_WAGE)^2)
+```
+
+The prediction MSE is 72.51022 which is the lowest computed so far.
+
+
+```{r}
+which.min(wage_rf$mse)
+```
+
+
+```{r}
+#importance(wage_rf)
+importance(wage_rf)[order(importance(wage_rf)[, 1], decreasing = TRUE), ] |> round(0)
+```
+
+```{r}
+# #| cache: true
+# set.seed(myseed)
+# tuneRF(x = reg_train, y = reg_train$EXIT_WAGE)
+```
+
+
+
+##### Random Forest Model Tuning
+
+I'm using the `ranger` package because it is much faster and more accurate than the original `randomForest` package, and it's more suitable for large datasets.
+
+This prints: Cross-validated RMSE, Best hyperparameters (Cross-validated hyperparameter tuning), Model structure.
+
+```{r}
+#| cache: true
+
+library(caret)
+library(ranger)
+
+set.seed(myseed)
+
+tc <- trainControl(method = "cv", number = 10)
+
+rf_grid <- expand.grid(
+  mtry = c(8),
+  splitrule = "variance",
+  min.node.size = c(5, 10, 20)
+)
+
+rf_model <- train(
+  EXIT_WAGE ~ .,
+  data = reg_train,
+  method = "ranger",
+  trControl = tc,
+  tuneGrid = rf_grid,
+  importance = "impurity",
+  num.trees = 500,
+  metric = "RMSE"
+)
+
+rf_model
+```
+
+
+# Compute Test RMSE
+
+```{r}
+rf_pred <- predict(rf_model, newdata = reg_test)
+
+mean((rf_pred - reg_test$EXIT_WAGE)^2)
+rf_rmse <- sqrt(mean((rf_pred - reg_test$EXIT_WAGE)^2))
+rf_rmse
+```
+
+# Check variable importance
+
+```{r}
+varImp(rf_model)
+plot(varImp(rf_model))
+```
+
+
+* We can see that STARTING_WAGE is dominating importance.
+
+* AGE_AT_START, MAJOR_GROUP_NAME, several education/race variables, OCCUP_TYPE are also important, with some contributing small amounts each for the model.
+
