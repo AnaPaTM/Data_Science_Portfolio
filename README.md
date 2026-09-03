@@ -8,13 +8,13 @@ I am a statistician with experience in data analysis, statistical modeling, rese
 ## Featured Projects
 
 ### 01 - Data Science
-Brief description...
+* open folder for description
 
 ### 02 - Regression
-Brief description...
+* open folder for description
 
 ### 03 - Machine Learning
-Brief description...
+* open folder for description
 
 ### 04 - Interactive R Shiny Application
 
@@ -29,5 +29,4 @@ Interactive Statistical Analysis Dashboard
 
 ## Technical Skills
 
-R | SAS | SQL | Git/GitHub | Statistical Modeling |
-Data Visualization | Shiny | R Markdown/Quarto
+R | Git/GitHub | Statistical Modeling | Regression | Machine Learning | Shiny | SQL | SAS 
