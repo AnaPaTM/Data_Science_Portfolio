@@ -16,8 +16,16 @@ Brief description...
 ### 03 — ...
 Brief description...
 
-### 04 — ...
-Brief description...
+### 04 — Interactive R Shiny Application
+
+Interactive Statistical Analysis Dashboard
+
+* Interactive filters
+* Histograms
+* Boxplots
+* Statistical tests
+* Regression
+* Data tables
 
 ## Technical Skills
 
