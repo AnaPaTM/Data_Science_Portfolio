@@ -23,3 +23,7 @@ This course focused on applying statistical programming and data science methods
 ## Technologies and Tools
 
 R | Tidyverse | R Markdown/Quarto | Shiny | SQL | APIs | Web Scraping | Data Visualization | Statistical Modeling | Interactive Dashboards
+
+## Final Project
+* Shiny App Project: "Determinants of Immigration Into US Counties": [View Project →](../04_Interactive_ShinyApplication)
+* Vignette: [View File →](../04_Interactive_ShinyApplication/vignette/Vignette.html)
