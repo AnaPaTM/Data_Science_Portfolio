@@ -20,5 +20,19 @@ evaluating predictive performance, and critically comparing alternative approach
 
 ## Technologies and Methods
 
-**R | Statistical Learning | Regression | Classification | Variable Selection | Cross-Validation | Bootstrap | Regularization | Ridge Regression | Lasso | 
-PC | PLS | LDA/QDA | KNN | Decision Trees | Support Vector Machines | Deep Learning | Clustering | Model Tuning | Model Evaluation | Predictive Modeling**
+R | Statistical Learning | Regression | Classification | Variable Selection | Cross-Validation | Bootstrap | Regularization | Ridge Regression | Lasso | 
+PC | PLS | LDA/QDA | KNN | Decision Trees | Support Vector Machines | Deep Learning | Clustering | Model Tuning | Model Evaluation | Predictive Modeling
+
+## Final Project 
+
+[Predicting Apprenticeship Outcomes](../03_Machine_Learning/Final_Project/Apprenticeship_Outcomes_Poster.pdf)
+
+Our analysis focuses on two critical dimensions of apprenticeship outcomes: apprenticeship completion and
+apprentice exit wage. Developing models that determine which factors influence these outcomes will better
+enable investment and program structure that results in better outcomes for apprentices.
+
+* Question 1: Which indicators, such as wage, occupational group, age, education level, race, and training model, are
+most useful in predicting whether an apprentice will complete their apprenticeship?
+
+* Question 2: What do we predict an apprentice’s exit wage will be based on the apprentice’s occupational
+group, initial wage, age, gender, education level, race and training model?
