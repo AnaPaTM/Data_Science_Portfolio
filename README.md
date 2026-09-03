@@ -8,13 +8,13 @@ I am a statistician with experience in data analysis, statistical modeling, rese
 ## Featured Projects
 
 ### 01 - Data Science
-* open folder for description
+* Open folder for description
 
 ### 02 - Regression
-* open folder for description
+* Open folder for description
 
 ### 03 - Machine Learning
-* open folder for description
+* Open folder for description
 
 ### 04 - Interactive R Shiny Application
 
