@@ -38,4 +38,3 @@ most useful in predicting whether an apprentice will complete their apprenticesh
 group, initial wage, age, gender, education level, race and training model?
 
 [View Project →](../03_Machine_Learning/Final_Project/Apprenticeship_Outcomes_Poster.pdf)
-Note: the raw csv data file was too large and, therefore, not uploaded.
