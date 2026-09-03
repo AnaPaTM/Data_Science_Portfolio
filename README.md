@@ -11,7 +11,7 @@ I am a statistician with experience in data analysis, statistical modeling, rese
 * Go to folder to access information [View Folder →](./Data_Science_Portfolio/Data_Science)
 
 ### 02 - Regression
-* Go to folder to access information [View Folder →](Data_Science_Portfolio/Regression)
+* Go to folder to access information [View Folder →](Regression)
 
 ### 03 - Machine Learning
 * Go to folder to access information [View Folder →](Data_Science_Portfolio/Machine_Learning)
