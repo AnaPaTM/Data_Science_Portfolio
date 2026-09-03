@@ -8,13 +8,13 @@ I am a statistician with experience in data analysis, statistical modeling, rese
 ## Featured Projects
 
 ### 01 - Data Science
-* Go to folder to access information [View Folder →](./Data_Science_Portfolio/Data_Science)
+* Go to folder to access information [View Folder →](./Data_Science_Portfolio/01_Data_Science)
 
 ### 02 - Regression
-* Go to folder to access information [View Folder →](Regression)
+* Go to folder to access information [View Folder →](02_Regression)
 
 ### 03 - Machine Learning
-* Go to folder to access information [View Folder →](Data_Science_Portfolio/Machine_Learning)
+* Go to folder to access information [View Folder →](Data_Science_Portfolio/03_Machine_Learning)
 
 ### 04 - Interactive R Shiny Application
 
@@ -27,7 +27,7 @@ Interactive Statistical Analysis Dashboard
 * Regression
 * Data tables
 
-* Go to folder to access information [View Folder →](Data_Science_Portfolio/Interactive_ShinyApplication)
+* Go to folder to access information [View Folder →](Data_Science_Portfolio/04_Interactive_ShinyApplication)
 
 ## Technical Skills
 
