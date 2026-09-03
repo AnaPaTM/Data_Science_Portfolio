@@ -1,6 +1,8 @@
 # Machine Learning
 
-This course develops practical and analytical expertise in applying statistical learning methods to large, messy, high-dimensional datasets containing both numerical and categorical variables. The coursework emphasizes selecting appropriate methods, understanding their assumptions, tuning model parameters, evaluating predictive performance, and critically comparing alternative approaches.
+This course develops practical and analytical expertise in applying statistical learning methods to large, messy, high-dimensional datasets containing both 
+numerical and categorical variables. The coursework emphasizes selecting appropriate methods, understanding their assumptions, tuning model parameters, 
+evaluating predictive performance, and critically comparing alternative approaches.
 
 ## Key Skills and Learning Outcomes
 
