@@ -7,16 +7,16 @@ I am a statistician with experience in data analysis, statistical modeling, rese
 
 ## Featured Projects
 
-### 01 — ...
+### 01 - Data Science
 Brief description...
 
-### 02 — ...
+### 02 - Regression
 Brief description...
 
-### 03 — ...
+### 03 - Machine Learning
 Brief description...
 
-### 04 — Interactive R Shiny Application
+### 04 - Interactive R Shiny Application
 
 Interactive Statistical Analysis Dashboard
 
