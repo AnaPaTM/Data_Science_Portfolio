@@ -24,3 +24,11 @@ model development, statistical inference, diagnostics, prediction, interpretatio
 **R | Statistical Modeling | Linear Regression | Multiple Regression | Least Squares Estimation | 
 Statistical Inference | Variable Selection | Model Diagnostics | Prediction | Hypothesis Testing | 
 Confidence Intervals | Matrix Algebra | Data Visualization**
+
+## Final Project [MEDIATION ANALYSIS: THE ROLE OF EDUCATIONAL ATTAINMENT IN RESIDENTIAL MOBILITY PATTERNS ACROSS INCOME BRACKETS](../02_Regression/Final_Project/Mediation_Analysis_Project.pdf)
+
+* This project utilizes mediation analysis to understand the relationships between socioeconomic factors and residential patterns.
+* The study focuses on how education impacts residential mobility through income.
+* The research explores the interconnectedness of social and economic forces in shaping residential choices and mobility patterns.
+* The analysis uses data from the 2023 U.S. Census American Community Survey (ACS) 1-Year Public Use Microdata Sample (PUMS) Dataset with a random sample of 50,000 records.
+* The research seeks to contribute to a richer understanding of how education and income shape patterns of residential stability and change.
